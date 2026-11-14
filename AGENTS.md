@@ -4,7 +4,7 @@
 
 用户于 2026-11-14 指定以下后续更新流程：完成本项目更新后，同步源码到 GitHub，并更新单文件 EXE 发布包。这属于持续授权，无需每次再次询问是否上传。
 
-- 固定仓库：`https://github.com/mumobai227/AirportSignStudio`。账号为 `mumobai227`；不要混用 `MUmobai`。保持仓库私有。
+- 固定仓库：`https://github.com/mumobai227/AirportSignStudio`。账号为 `mumobai227`；不要混用 `MUmobai`。按用户后续要求，保持仓库公开。
 - 程序更新完成后，更新版本号与版本说明，执行 `./build.ps1 -Test`，修复检查失败后再发布。
 - 将本次源码和文档提交并推送到仓库，保留已有提交历史；不要强制推送。
 - 为程序新版本建立对应标签与 GitHub Release，上传可独立运行的 `AirportSignStudio.exe`。继续提供 Windows ZIP、源码 ZIP 和 `SHA256SUMS.txt`，使发布包与该版本源码一致。
