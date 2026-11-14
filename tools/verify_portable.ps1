@@ -1,11 +1,11 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$checkRoot = Join-Path $projectRoot 'validation_v3_19\portable_smoke'
+$checkRoot = Join-Path $projectRoot 'validation_v3_20\portable_smoke'
 $appDirectory = Join-Path $checkRoot '仅一个文件 portable'
 $cacheDirectory = Join-Path $checkRoot 'runtime-cache'
 $emptyRuntime = Join-Path $checkRoot 'empty-runtime'
 New-Item -ItemType Directory -Path $appDirectory, $cacheDirectory, $emptyRuntime -Force | Out-Null
-$source = Join-Path $projectRoot 'release_v3_19\AirportSignStudio.exe'
+$source = Join-Path $projectRoot 'release_v3_20\AirportSignStudio.exe'
 $executable = Join-Path $appDirectory '机场标志工坊.exe'
 Copy-Item -LiteralPath $source -Destination $executable -Force
 if (@(Get-ChildItem -LiteralPath $appDirectory -Force).Count -ne 1) { throw 'Smoke directory must contain only the executable.' }
@@ -52,7 +52,7 @@ try {
     $ready = [Diagnostics.Stopwatch]::StartNew()
     do {
         $windows = [PortableSmokeWindows]::ForProcess($process.Id)
-        $window = $windows.GetEnumerator() | Where-Object Value -eq '拼图编辑器 · 未命名工程 · Airport Sign Studio 3.19' | Select-Object -First 1
+        $window = $windows.GetEnumerator() | Where-Object Value -eq '拼图编辑器 · 未命名工程 · Airport Sign Studio 3.20' | Select-Object -First 1
         if ($null -eq $window) { Start-Sleep -Milliseconds 100 }
     } while ($null -eq $window -and -not $process.HasExited -and $ready.ElapsedMilliseconds -lt 15000)
     if ($null -eq $window) { throw ('Main window was not created. Found: ' + ($windows.Values -join ', ')) }

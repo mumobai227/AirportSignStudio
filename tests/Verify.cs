@@ -21,6 +21,59 @@ static partial class Verify
     {
         bool threw = false; try { action(); } catch (ArgumentException) { threw = true; } Assert(threw, message);
     }
+    static void VerifyAspectRatio(SignEngine engine)
+    {
+        Settings board = new Settings { Kind = AssetKind.StandSign, Text = "23", CharacterHeight = 600, Width = 2400, Height = 1200 };
+        board.AspectRatio = "3：2";
+        using (SignDocument sign = engine.Build(board))
+        {
+            Near(sign.Width, 1500, "Ratio uses automatic board dimensions");
+            Near(sign.Height, 1000, "Wide ratio keeps automatic height");
+            Near(sign.Shapes[1].Path.GetBounds().Height, 600, "Ratio does not stretch text");
+        }
+        board.AspectRatio = "1:4";
+        using (SignDocument sign = engine.Build(board))
+        {
+            Near(sign.Width / sign.Height, 0.25f, "Tall ratio adds height");
+            Assert(sign.Height > 1000, "Tall ratio fits the original text and margins");
+        }
+        Settings taxi = new Settings { Kind = AssetKind.TaxiSign, CharacterHeight = 300 };
+        taxi.Panels.Add(new SignPanel { Kind = "位置", Text = "A", Arrow = "无", Width = 900 });
+        taxi.Panels.Add(new SignPanel { Text = "B", Width = 1300 });
+        taxi.AspectRatio = "2:1";
+        using (SignDocument sign = engine.Build(taxi))
+        {
+            Near(sign.Width, 2200, "Tall combination keeps the segment widths");
+            Near(sign.Height, 1100, "Combination ratio uses total width");
+        }
+        taxi.AspectRatio = "6:1";
+        using (SignDocument sign = engine.Build(taxi))
+        {
+            Near(sign.Width, 2700, "Wide combination expands to overall ratio");
+            Near(sign.Shapes[0].Path.GetBounds().Width, 1150, "Combination distributes added width");
+            Near(sign.Height, 450, "Wide combination keeps automatic height");
+        }
+        foreach (string invalid in new[] { "3:", "0:2", "NaN:1", "1:1000000" })
+        {
+            board.AspectRatio = invalid;
+            Throws(() => { using (engine.Build(board)) { } }, "Invalid or oversized ratio " + invalid);
+        }
+        board.AspectRatio = "";
+        using (SignDocument sign = engine.Build(board)) Near(sign.Height, 1000, "Empty ratio uses automatic size");
+        board.AspectRatio = null;
+        using (SignDocument sign = engine.Build(board)) Near(sign.Height, 1200, "Switching back restores millimetre size");
+
+        AtlasWorkspace workspace = new AtlasWorkspace(); workspace.Slots[0] = board;
+        AtlasHistory history = new AtlasHistory(workspace);
+        board.AspectRatio = "3:2"; history.Record(new[] { 0 });
+        AtlasWorkspace loaded = ProjectStore.Decode(ProjectStore.Encode(workspace));
+        Assert(loaded.Slots[0].Copy().AspectRatio == "3:2", "Saved and copied slots retain ratio");
+        using (AtlasLayout layout = AtlasLayout.Build(engine, loaded))
+            Near(layout.Slots[0].Image.Width / layout.Slots[0].Image.Height, 1.5f, "Atlas uses the computed board ratio");
+        Assert(history.Undo() && workspace.Slots[0].AspectRatio == null &&
+               history.Redo() && workspace.Slots[0].AspectRatio == "3:2", "Ratio participates in undo and redo");
+    }
+
     static void Sample(SignEngine engine, Settings s, string name, string directory, int edge)
     {
         using (SignDocument doc = engine.Build(s))
@@ -793,6 +846,7 @@ static partial class Verify
                 Sample(engine, board, "04_long_number_no_clipping", directory, 4096);
                 Assert(Exporter.SafeName("A1 / B2:*?") == "A1_B2", "Safe export file names");
                 VerifyV2(engine, library, directory);
+                VerifyAspectRatio(engine);
                 VerifyAtlas(engine, directory);
                 VerifyMergedAtlas(engine, directory);
                 VerifyProjectAndPol(engine, directory);

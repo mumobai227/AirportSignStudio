@@ -37,11 +37,18 @@ namespace AirportSignStudio
         }
 
         void Notify() { if (!building && Changed != null) Changed(settings); }
-        void Later()
+        void Later(bool keepScroll = false)
         {
             if (rebuildPending) return;
             rebuildPending = true;
-            BeginInvoke(new Action(delegate { rebuildPending = false; if (!IsDisposed) Rebuild(); }));
+            BeginInvoke(new Action(delegate
+            {
+                rebuildPending = false;
+                if (IsDisposed) return;
+                Point scroll = AutoScrollPosition;
+                Rebuild();
+                if (keepScroll) AutoScrollPosition = new Point(-scroll.X, -scroll.Y);
+            }));
         }
         void Hint(string text, int height)
         {
@@ -105,7 +112,9 @@ namespace AirportSignStudio
                 Choice("地面标志类型", new[] { "MAX SPAN", "HP", "NO ENTRY", "机型文字" }, s.OtherStyle, v =>
                 {
                     s.OtherStyle = v; s.Text = v == "MAX SPAN" ? "36" : v == "HP" ? "4" : v == "NO ENTRY" ? "NO ENTRY" : "A320/B737";
-                    s.CharacterHeight = v == "机型文字" ? 300 : 4000; s.Border = v != "HP"; s.BlackBackground = v != "机型文字"; s.Width = s.Height = 0; Later();
+                    s.CharacterHeight = v == "机型文字" ? 300 : 4000; s.Border = v != "HP"; s.BlackBackground = v != "机型文字"; s.Width = s.Height = 0;
+                    if (s.AspectRatio != null) s.AspectRatio = "";
+                    Later();
                 });
             if (s.Kind == AssetKind.TaxiSign) Panels(s);
             else if (s.Kind != AssetKind.GroundOther || s.OtherStyle != "NO ENTRY")
@@ -140,9 +149,19 @@ namespace AirportSignStudio
                 if (s.Kind != AssetKind.GroundOther || s.OtherStyle != "机型文字") Toggle("对比边框", s.Border, v => s.Border = v);
                 if (s.Kind == AssetKind.GroundOther && (s.OtherStyle == "MAX SPAN" || s.OtherStyle == "机型文字")) Toggle("黑色背景（取消为透明）", s.BlackBackground, v => s.BlackBackground = v);
             }
-            Hint("尺寸 · 0 = 自动", 25);
-            if (s.Kind != AssetKind.TaxiSign) Number("整体宽度 / mm", s.Width, 0, 200000, 0, v => s.Width = v);
-            Number("整体高度 / mm", s.Height, 0, 200000, 0, v => s.Height = v);
+            Choice("自由尺寸", new[] { "宽高 / mm", "长宽比" }, s.AspectRatio == null ? "宽高 / mm" : "长宽比", v =>
+            {
+                s.AspectRatio = v == "长宽比" ? "" : null;
+                Later(true);
+            });
+            if (s.AspectRatio != null)
+                TextInput("长宽比 · 例如 3:2，留空自动", s.AspectRatio, v => s.AspectRatio = v);
+            else
+            {
+                Hint("0 = 自动", 25);
+                if (s.Kind != AssetKind.TaxiSign) Number("整体宽度 / mm", s.Width, 0, 200000, 0, v => s.Width = v);
+                Number("整体高度 / mm", s.Height, 0, 200000, 0, v => s.Height = v);
+            }
             DpiLayout.ScaleNewChildren(this); ResumeLayout(true); building = false;
         }
 

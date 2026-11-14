@@ -37,6 +37,7 @@ namespace AirportSignStudio
         public string Latitude = "";
         public string Longitude = "";
         public float Width, Height; // Zero means automatic; changing these never scales the glyphs.
+        public string AspectRatio; // Null selects millimetres. Empty selects automatic dimensions in ratio mode.
         public string OtherStyle = "MAX SPAN";
         public bool BlackBackground = true;
         public ColorSettings Colors = new ColorSettings();
@@ -46,6 +47,7 @@ namespace AirportSignStudio
             Settings copy = new Settings { Kind = Kind, Text = Text, GroundStyle = GroundStyle, Arrow = Arrow,
                 ArrowAbove = ArrowAbove, Border = Border, CharacterHeight = CharacterHeight, GroundGap = GroundGap,
                 Coordinates = Coordinates, Latitude = Latitude, Longitude = Longitude, Width = Width, Height = Height,
+                AspectRatio = AspectRatio,
                 OtherStyle = OtherStyle, BlackBackground = BlackBackground, Colors = Colors.Copy() };
             foreach (SignPanel p in Panels) copy.Panels.Add(new SignPanel { Kind = p.Kind, Text = p.Text, Arrow = p.Arrow, Width = p.Width });
             return copy;
@@ -300,6 +302,39 @@ namespace AirportSignStudio
             return requested;
         }
 
+        static double ReadAspectRatio(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return 0;
+            string[] parts = input.Normalize(NormalizationForm.FormKC).Split(':');
+            if (parts.Length == 2 &&
+                double.TryParse(parts[0], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite, CultureInfo.InvariantCulture, out double width) &&
+                double.TryParse(parts[1], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite, CultureInfo.InvariantCulture, out double height) &&
+                width > 0 && height > 0 && double.IsFinite(width) && double.IsFinite(height))
+            {
+                double ratio = width / height;
+                if (ratio > 0 && double.IsFinite(ratio)) return ratio;
+            }
+            throw new ArgumentException("长宽比请输入两个正数，例如 3:2。");
+        }
+
+        static SizeF FitAspectRatio(float width, float height, double ratio, float maxWidth = 200000)
+        {
+            double fittedWidth = Math.Max(width, height * ratio);
+            double fittedHeight = Math.Max(height, width / ratio);
+            if (fittedWidth > maxWidth || fittedHeight > 200000)
+                throw new ArgumentException("当前内容使用这个长宽比会超过尺寸上限。");
+            return new SizeF((float)fittedWidth, (float)fittedHeight);
+        }
+
+        static SizeF BoardSize(Settings s, float autoWidth, float autoHeight, float minWidth, float minHeight, string label = "底板")
+        {
+            double ratio = ReadAspectRatio(s.AspectRatio);
+            if (ratio > 0) return FitAspectRatio(autoWidth, autoHeight, ratio);
+            if (s.AspectRatio != null) return new SizeF(autoWidth, autoHeight);
+            return new SizeF(Dimension(s.Width, autoWidth, minWidth, label + "宽度"),
+                Dimension(s.Height, autoHeight, minHeight, label + "高度"));
+        }
+
         public SignDocument Build(Settings s, ColorSettings shared = null, TypeColorSettings types = null, BaseColorSettings basis = null)
         {
             s.Colors.Validate(); if (shared != null) shared.Validate();
@@ -319,7 +354,8 @@ namespace AirportSignStudio
                     if (s.Kind == AssetKind.StandSign) BuildStandSign(doc, s, text);
                     if (s.Kind == AssetKind.GroundOther) BuildOtherGround(doc, s, text);
                 }
-                if (s.Width > 0 || s.Height > 0 || s.Panels.Any(p => p.Width > 0)) doc.Note += " 自定义底板尺寸。";
+                if (!string.IsNullOrWhiteSpace(s.AspectRatio) || s.AspectRatio == null && (s.Width > 0 || s.Height > 0) || s.Panels.Any(p => p.Width > 0))
+                    doc.Note += " 自定义底板尺寸。";
                 foreach (Shape shape in doc.Shapes)
                 {
                     ColorSettings type = types == null ? null : types.Get(shape.ColorType);
@@ -343,8 +379,8 @@ namespace AirportSignStudio
             float content = direction && !s.ArrowAbove ? tw + pad + aw : Math.Max(tw, aw);
             float edge = s.Border ? 100 : 0, ch = h + (direction && s.ArrowAbove ? ah + pad : 0);
             float minimumPad = mandatory ? pad : edge + h * 0.025f;
-            doc.Width = Dimension(s.Width, content + pad * 2, content + minimumPad * 2, "底板宽度");
-            doc.Height = Dimension(s.Height, ch + pad * 2, ch + minimumPad * 2, "底板高度");
+            SizeF size = BoardSize(s, content + pad * 2, ch + pad * 2, content + minimumPad * 2, ch + minimumPad * 2);
+            doc.Width = size.Width; doc.Height = size.Height;
             Color bg = mandatory ? Red : direction ? Yellow : Black;
             Color fg = mandatory ? White : direction ? Black : Yellow;
             doc.Rect(0, 0, doc.Width, doc.Height, s.Border ? fg : bg, s.Border ? ColorRole.Border : ColorRole.Background);
@@ -375,8 +411,9 @@ namespace AirportSignStudio
             float h = s.CharacterHeight, pad = h / 8, b = h * 1.25f, e = h / 2;
             float tw = TextWidth(text, "ground", h, s.GroundGap), minimumPad = (s.Border ? 100 : 0) + h * 0.025f;
             float sideHead = s.Arrow == "←" || s.Arrow == "→" ? e : 0, topHead = s.Arrow == "↑" ? e : 0;
-            float c = Dimension(s.Width, tw + pad * 2 + sideHead, tw + minimumPad * 2 + sideHead, "底板宽度") - sideHead;
-            b = Dimension(s.Height, b + topHead, h + minimumPad * 2 + topHead, "底板高度") - topHead;
+            SizeF size = BoardSize(s, tw + pad * 2 + sideHead, b + topHead, tw + minimumPad * 2 + sideHead, h + minimumPad * 2 + topHead);
+            float c = size.Width - sideHead;
+            b = size.Height - topHead;
             float tx = (c - tw) / 2, ty = (b - h) / 2;
             PointF[] polygon;
             if (s.Arrow == "↑")
@@ -414,12 +451,13 @@ namespace AirportSignStudio
                 throw new ArgumentException("8.1.4：强制性指令牌只能与位置牌合设；请分开导出方向牌。");
             float h = s.CharacterHeight;
             if (h != 200 && h != 300 && h != 400) throw new ArgumentException("滑行引导牌的字高请选择 200、300 或 400 mm。");
-            doc.Height = Dimension(s.Height, 1.5f * h, h * 1.18f, "牌面高度");
+            doc.Height = Dimension(s.AspectRatio == null ? s.Height : 0, 1.5f * h, h * 1.18f, "牌面高度");
+            var panels = new (string Text, float TextWidth, float ArrowWidth, float ContentWidth, float Width)[s.Panels.Count];
+            double ratio = ReadAspectRatio(s.AspectRatio);
             List<string> captions = new List<string>();
             for (int i = 0; i < s.Panels.Count; i++)
             {
                 SignPanel panel = s.Panels[i];
-                doc.ColorType = TypeColorSettings.Panel(panel.Kind); doc.ColorSection = i;
                 string text = CheckedText(panel.Text);
                 bool direction = panel.Kind == "方向", location = panel.Kind == "位置", mandatory = panel.Kind == "强制指令";
                 if (!direction && !location && !mandatory) throw new ArgumentException("请选择有效的牌面类型。");
@@ -430,6 +468,25 @@ namespace AirportSignStudio
                 if (mandatory && Regex.IsMatch(text, "^[0-9]{2}[LCR]?$")) pad = h;
                 float content = tw + (direction ? aw + h * 0.5f : 0);
                 float w = Dimension(panel.Width, content + pad * 2, content + h * 0.18f, "第 " + (i + 1) + " 段宽度");
+                panels[i] = (text, tw, aw, content, w);
+            }
+            float extraWidth = 0;
+            if (ratio > 0)
+            {
+                float width = panels.Sum(panel => panel.Width);
+                SizeF size = FitAspectRatio(width, doc.Height, ratio, 200000 * panels.Length);
+                doc.Height = size.Height;
+                extraWidth = (size.Width - width) / panels.Length;
+                if (panels.Any(panel => panel.Width + extraWidth > 200000))
+                    throw new ArgumentException("当前长宽比会使分段宽度超过 200000 mm。");
+            }
+            for (int i = 0; i < panels.Length; i++)
+            {
+                SignPanel panel = s.Panels[i];
+                doc.ColorType = TypeColorSettings.Panel(panel.Kind); doc.ColorSection = i;
+                bool direction = panel.Kind == "方向", location = panel.Kind == "位置", mandatory = panel.Kind == "强制指令";
+                var (text, tw, aw, content, width) = panels[i];
+                float w = width + extraWidth;
                 float x = doc.Width;
                 Color bg = location ? Black : mandatory ? Red : Yellow;
                 Color fg = location ? Yellow : mandatory ? White : Black;
@@ -461,7 +518,6 @@ namespace AirportSignStudio
             if (!Regex.IsMatch(text, "^[A-Z0-9-]+$")) throw new ArgumentException("机位编号请使用字母、数字或短横线。");
             float h = s.CharacterHeight, tw = TextWidth(text, "sign", h, 0);
             float autoHeight = h / (s.Coordinates ? 0.4f : 0.6f), blockHeight = s.Coordinates ? 2 * h : h;
-            doc.Height = Dimension(s.Height, autoHeight, blockHeight + h * 0.1f, "底板高度");
             float margin = autoHeight / 20, latWidth = 0, lonWidth = 0;
             string lat = "", lon = "";
             if (s.Coordinates)
@@ -474,7 +530,8 @@ namespace AirportSignStudio
                 latWidth = TextWidth(lat, "sign", h / 4, 0); lonWidth = TextWidth(lon, "sign", h / 4, 0);
             }
             float maxWidth = Math.Max(tw, Math.Max(latWidth, lonWidth));
-            doc.Width = Dimension(s.Width, maxWidth + margin * 2, maxWidth + h * 0.1f, "底板宽度");
+            SizeF size = BoardSize(s, maxWidth + margin * 2, autoHeight, maxWidth + h * 0.1f, blockHeight + h * 0.1f);
+            doc.Width = size.Width; doc.Height = size.Height;
             doc.Rect(0, 0, doc.Width, doc.Height, Yellow);
             float y = (doc.Height - blockHeight) / 2;
             Text(doc, text, "sign", h, 0, (doc.Width - tw) / 2, y, Black);
@@ -515,8 +572,8 @@ namespace AirportSignStudio
                 string lower = text + " m";
                 float tw = TextWidth("MAX SPAN", "ground", h, s.GroundGap), lw = TextWidth(lower, "ground", h, s.GroundGap);
                 float content = Math.Max(tw, lw), block = h * 2 + pad;
-                doc.Width = Dimension(s.Width, content + pad * 2, content + edge * 2 + h * 0.05f, "底板宽度");
-                doc.Height = Dimension(s.Height, h * 2.375f, block + edge * 2 + h * 0.05f, "底板高度");
+                SizeF size = BoardSize(s, content + pad * 2, h * 2.375f, content + edge * 2 + h * 0.05f, block + edge * 2 + h * 0.05f);
+                doc.Width = size.Width; doc.Height = size.Height;
                 if (s.BlackBackground) doc.Rect(0, 0, doc.Width, doc.Height, Black);
                 if (edge > 0) Frame(doc, doc.Width, doc.Height, edge, Yellow);
                 float y = (doc.Height - block) / 2;
@@ -529,8 +586,8 @@ namespace AirportSignStudio
             {
                 if (!Regex.IsMatch(text, "^[A-Z0-9 /.-]+$")) throw new ArgumentException("机型文字支持字母、数字、空格、斜线、点和短横线。");
                 float tw = TextWidth(text, "ground", h, s.GroundGap);
-                doc.Width = Dimension(s.Width, tw + pad * 2, tw, "画幅宽度");
-                doc.Height = Dimension(s.Height, h + pad * 2, h, "画幅高度");
+                SizeF size = BoardSize(s, tw + pad * 2, h + pad * 2, tw, h, "画幅");
+                doc.Width = size.Width; doc.Height = size.Height;
                 if (s.BlackBackground) doc.Rect(0, 0, doc.Width, doc.Height, Black);
                 Text(doc, text, "ground", h, s.GroundGap, (doc.Width - tw) / 2, (doc.Height - h) / 2, Yellow);
                 doc.Caption = text; doc.Reference = "6.2.16(7)；图 6.2.16-7 / 8";

@@ -111,7 +111,7 @@ namespace AirportSignStudio
         public MainForm()
         {
             engine = new SignEngine(glyphs);
-            Text = "机场标志工坊 3.19 · Airport Sign Studio";
+            Text = "机场标志工坊 3.20 · Airport Sign Studio";
             ForeColor = Ink;
             BackColor = StudioTheme.Surface;
             ClientSize = new Size(1380, 820); MinimumSize = new Size(1140, 700); StartPosition = FormStartPosition.CenterScreen;
