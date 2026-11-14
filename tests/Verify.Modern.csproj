@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <StartupObject>ModernTestRunner</StartupObject>
+    <ApplicationManifest>../app.manifest</ApplicationManifest>
+    <ApplicationIcon>../assets/app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/*.cs" />
+    <Compile Include="Verify.cs;VerifyV39.cs;VerifyTypeColors.cs;VerifyBaseColors.cs;VerifyViewport.cs;VerifyDpi.cs;VerifyAtlasWorkflow.cs;VerifyStudioUi.cs;ModernTestRunner.cs" />
+    <EmbeddedResource Include="../assets/glyphs.xml" LogicalName="glyphs.xml" />
+    <EmbeddedResource Include="../assets/paint/reference.bin" LogicalName="paint.reference.bin" />
+  </ItemGroup>
+</Project>

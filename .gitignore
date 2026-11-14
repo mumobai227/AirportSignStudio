@@ -1,0 +1,20 @@
+# Generated files and local SDK
+.tools/
+**/bin/
+**/obj/
+/release*/
+/validation*/
+/backups/
+/delivery/
+/AirportSignStudio*_Windows.zip
+/AirportSignStudio*_Source.zip
+# Legacy .NET Framework configuration; modern build embeds runtime configuration
+/app.config
+# Local editor and temporary files
+.vs/
+.vscode/
+*.user
+*.suo
+__pycache__/
+*.pyc
+*.tmp

@@ -1,0 +1,81 @@
+{
+  "sources": [
+    {
+      "path": "Markings_01_轻污渍Sample.psd",
+      "sha256": "7ff15bfe467da2887ca13ad0e71cb7071e06afa188e4edba4f4aa8545a0da0b3"
+    },
+    {
+      "path": "Markings_01_轻微透明磨损Sample.psd",
+      "sha256": "04353f44137fef31efc8091c0ea4f893e8d4b66685bb83bc016d7a37f9c1f9bc"
+    }
+  ],
+  "crop": "Read-only interior strip x=14..173 within each 188-pixel PSD layer; excludes the source marking's outer silhouette.",
+  "planes": [
+    {
+      "name": "02 薄漆刷纹露底｜正常 + 蒙版",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "03 顺向细刷纹｜柔光",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "04 微颗粒｜叠加",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "亮边与刷纹凸起｜滤色",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "暗边与刷纹凹处｜正片叠底",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "细碎积灰｜正片叠底 12%",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "零散小污痕｜正片叠底 16%",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "短促擦蹭｜正片叠底 12%",
+      "width": 160,
+      "height": 1024
+    },
+    {
+      "name": "轻微透明磨损｜缺口缩小，保留自然过渡",
+      "width": 160,
+      "height": 640
+    },
+    {
+      "name": "01 灰褐色脏斑｜正片叠底 45%",
+      "width": 160,
+      "height": 640
+    },
+    {
+      "name": "02 漆面零散露底｜正常 80%",
+      "width": 160,
+      "height": 640
+    }
+  ],
+  "reference_color": "#FFAB09",
+  "blend_modes": [
+    "normal 204/255",
+    "soft light 66/255",
+    "overlay 36/255",
+    "screen 31/255",
+    "multiply 23/255",
+    "multiply 31/255",
+    "multiply 41/255",
+    "multiply 31/255"
+  ]
+}

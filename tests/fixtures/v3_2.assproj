@@ -1,0 +1,504 @@
+<AirportProject xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Version>1</Version>
+  <Rows>3</Rows>
+  <Columns>4</Columns>
+  <Width>3072</Width>
+  <Height>1536</Height>
+  <Gap>18</Gap>
+  <Padding>12</Padding>
+  <TargetTextPixels>96</TargetTextPixels>
+  <Slots>
+    <Settings>
+      <Kind>TaxiSign</Kind>
+      <Text>A1</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>300</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>700</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels>
+        <SignPanel>
+          <Kind>位置</Kind>
+          <Text>A</Text>
+          <Arrow>无</Arrow>
+          <Width>1000</Width>
+        </SignPanel>
+        <SignPanel>
+          <Kind>方向</Kind>
+          <Text>B2</Text>
+          <Arrow>↗</Arrow>
+          <Width>1600</Width>
+        </SignPanel>
+      </Panels>
+    </Settings>
+    <Settings>
+      <Kind>GroundTaxi</Kind>
+      <Text>A2</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>←</Arrow>
+      <ArrowAbove>true</ArrowAbove>
+      <Border>false</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.18</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>StandSign</Kind>
+      <Text>23</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>800</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>true</Coordinates>
+      <Latitude>N 52 30.2</Latitude>
+      <Longitude>E 114 25.1</Longitude>
+      <Width>6000</Width>
+      <Height>3000</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundStand</Kind>
+      <Text>21</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>→</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>16000</Width>
+      <Height>9000</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundOther</Kind>
+      <Text>36</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>false</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundOther</Kind>
+      <Text>4</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>HP</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundOther</Kind>
+      <Text>NO ENTRY</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>2000</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>NO ENTRY</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundOther</Kind>
+      <Text>A320/B737</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>500</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>机型文字</OtherStyle>
+      <BlackBackground>false</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundStand</Kind>
+      <Text>21</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>→</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>16000</Width>
+      <Height>9000</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>GroundTaxi</Kind>
+      <Text>A2</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>←</Arrow>
+      <ArrowAbove>true</ArrowAbove>
+      <Border>false</Border>
+      <CharacterHeight>4000</CharacterHeight>
+      <GroundGap>0.18</GroundGap>
+      <Coordinates>false</Coordinates>
+      <Latitude />
+      <Longitude />
+      <Width>0</Width>
+      <Height>0</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings>
+      <Kind>StandSign</Kind>
+      <Text>23</Text>
+      <GroundStyle>方向</GroundStyle>
+      <Arrow>↗</Arrow>
+      <ArrowAbove>false</ArrowAbove>
+      <Border>true</Border>
+      <CharacterHeight>800</CharacterHeight>
+      <GroundGap>0.1</GroundGap>
+      <Coordinates>true</Coordinates>
+      <Latitude>N 52 30.2</Latitude>
+      <Longitude>E 114 25.1</Longitude>
+      <Width>6000</Width>
+      <Height>3000</Height>
+      <OtherStyle>MAX SPAN</OtherStyle>
+      <BlackBackground>true</BlackBackground>
+      <Panels />
+    </Settings>
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+    <Settings xsi:nil="true" />
+  </Slots>
+  <Regions>
+    <RegionData>
+      <Index>0</Index>
+      <X>0</X>
+      <Y>0</Y>
+      <Width>1</Width>
+      <Height>0.25</Height>
+      <Children>
+        <RegionData>
+          <Index>0</Index>
+          <X>0</X>
+          <Y>0</Y>
+          <Width>0.5</Width>
+          <Height>0.25</Height>
+          <Children>
+            <RegionData>
+              <Index>0</Index>
+              <X>0</X>
+              <Y>0</Y>
+              <Width>0.25</Width>
+              <Height>0.25</Height>
+            </RegionData>
+            <RegionData>
+              <Index>1</Index>
+              <X>0.25</X>
+              <Y>0</Y>
+              <Width>0.25</Width>
+              <Height>0.25</Height>
+            </RegionData>
+          </Children>
+        </RegionData>
+        <RegionData>
+          <Index>2</Index>
+          <X>0.5</X>
+          <Y>0</Y>
+          <Width>0.25</Width>
+          <Height>0.25</Height>
+        </RegionData>
+        <RegionData>
+          <Index>3</Index>
+          <X>0.75</X>
+          <Y>0</Y>
+          <Width>0.25</Width>
+          <Height>0.25</Height>
+        </RegionData>
+      </Children>
+    </RegionData>
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData>
+      <Index>4</Index>
+      <X>0</X>
+      <Y>0.25</Y>
+      <Width>0.18</Width>
+      <Height>0.4166667</Height>
+    </RegionData>
+    <RegionData>
+      <Index>5</Index>
+      <X>0.18</X>
+      <Y>0.25</Y>
+      <Width>0.32</Width>
+      <Height>0.4166667</Height>
+    </RegionData>
+    <RegionData>
+      <Index>6</Index>
+      <X>0.5</X>
+      <Y>0.25</Y>
+      <Width>0.25</Width>
+      <Height>0.4166667</Height>
+    </RegionData>
+    <RegionData>
+      <Index>7</Index>
+      <X>0.75</X>
+      <Y>0.25</Y>
+      <Width>0.25</Width>
+      <Height>0.4166667</Height>
+    </RegionData>
+    <RegionData>
+      <Index>8</Index>
+      <X>0</X>
+      <Y>0.6666667</Y>
+      <Width>0.25</Width>
+      <Height>0.3333333</Height>
+    </RegionData>
+    <RegionData>
+      <Index>9</Index>
+      <X>0.25</X>
+      <Y>0.6666667</Y>
+      <Width>0.25</Width>
+      <Height>0.3333333</Height>
+    </RegionData>
+    <RegionData>
+      <Index>10</Index>
+      <X>0.5</X>
+      <Y>0.6666667</Y>
+      <Width>0.25</Width>
+      <Height>0.3333333</Height>
+    </RegionData>
+    <RegionData>
+      <Index>11</Index>
+      <X>0.75</X>
+      <Y>0.6666667</Y>
+      <Width>0.25</Width>
+      <Height>0.3333333</Height>
+    </RegionData>
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+    <RegionData xsi:nil="true" />
+  </Regions>
+  <PolNames>
+    <string>Taxi_A_B2</string>
+    <string xsi:nil="true" />
+    <string>Hidden_Stand</string>
+    <string xsi:nil="true" />
+    <string>Wing36</string>
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+  </PolNames>
+  <PolPrefix>Demo</PolPrefix>
+  <PolLayer>taxiways</PolLayer>
+  <PolOffset>2</PolOffset>
+</AirportProject>

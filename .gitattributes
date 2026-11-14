@@ -1,0 +1,18 @@
+* text=auto
+*.cs text eol=crlf
+*.ps1 text eol=crlf
+*.md text eol=lf
+*.py text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.csproj text eol=lf
+*.manifest text eol=lf
+*.assproj text eol=lf
+*.png binary
+*.ico binary
+*.bin binary
+*.exe binary
+*.zip binary
+assets/glyphs.xml -text
+tests/fixtures/*.assproj -text
