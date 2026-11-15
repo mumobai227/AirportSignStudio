@@ -117,13 +117,7 @@ namespace AirportSignStudio
             input.Enter += delegate { focus.To(1); }; input.Leave += delegate { focus.To(0); };
             Click += delegate { input.Focus(); };
             slider = customSlider;
-            if (control is NumericUpDown number && slider == null)
-            {
-                decimal current = number.Value;
-                slider = new StudioSlider(() => current, value => number.Value = value,
-                    number.Minimum, number.Maximum, number.Increment, number.DecimalPlaces);
-                number.ValueChanged += delegate { current = number.Value; slider.Invalidate(); };
-            }
+            if (control is NumericUpDown number && slider == null) slider = StudioSlider.ForNumber(number);
             if (slider != null)
             {
                 Controls.Add(slider);

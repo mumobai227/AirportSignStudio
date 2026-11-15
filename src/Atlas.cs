@@ -279,7 +279,7 @@ namespace AirportSignStudio
         readonly AtlasBook book;
         readonly AtlasHistory history;
         readonly AtlasPreview preview = new AtlasPreview();
-        readonly SlotEditor editor = new SlotEditor();
+        readonly SlotEditor editor;
         readonly Label selectedTitle = new Label(), detail = new Label(), density = new Label(), status = new Label();
         readonly NumericUpDown rows = new NumericUpDown(), columns = new NumericUpDown(), width = new NumericUpDown(), height = new NumericUpDown(), gap = new NumericUpDown(), padding = new NumericUpDown(), target = new NumericUpDown();
         readonly ComboBox preset = new StudioComboBox();
@@ -303,7 +303,8 @@ namespace AirportSignStudio
 
         public AtlasForm(SignEngine renderer, AtlasWorkspace state)
         {
-            engine = renderer; book = new AtlasBook(state); preview.Workspace = workspace; history = new AtlasHistory(book);
+            engine = renderer; editor = new SlotEditor(engine);
+            book = new AtlasBook(state); preview.Workspace = workspace; history = new AtlasHistory(book);
             ProjectTitle();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             BackColor = StudioTheme.Surface; ForeColor = StudioTheme.Ink;
@@ -510,7 +511,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.23"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.23.1"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }

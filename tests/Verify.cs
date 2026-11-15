@@ -74,6 +74,12 @@ static partial class Verify
     {
         const decimal start = 2400;
         const System.Windows.Forms.Keys ctrl = System.Windows.Forms.Keys.Control, shift = System.Windows.Forms.Keys.Shift;
+        decimal groundStep = SlotEditor.MillimetresPerPixel(4000);
+        decimal boardStep = SlotEditor.MillimetresPerPixel(300);
+        Assert(StudioSlider.FineDrag(500, 10, groundStep, System.Windows.Forms.Keys.None, 0, 200000) == 600,
+            "Ground margin drag uses the sign scale, even though the input accepts larger custom dimensions");
+        Assert(StudioSlider.FineDrag(2400, -10, boardStep, System.Windows.Forms.Keys.None, 0, 200000) == 2390,
+            "Smaller board dimensions use a smaller drag step");
         Assert(StudioSlider.FineDrag(start, 1, 1, ctrl, 0, 200000) == 2400.1m, "Ctrl allows a tenth on a wide dimension");
         Assert(StudioSlider.FineDrag(start, -1, 1, ctrl | shift, 0, 200000) == 2399.99m, "Shift takes priority and allows a hundredth");
         decimal accumulated = 0;
