@@ -117,8 +117,8 @@ namespace AirportSignStudio
                 Require(s.AspectRatio == null || s.AspectRatio.Length <= 40);
                 Require((s.LeftMargin == -1 || Range(s.LeftMargin, 0, 200000)) &&
                     (s.RightMargin == -1 || Range(s.RightMargin, 0, 200000)));
-                float[] heights = s.Kind == AssetKind.TaxiSign ? new float[] { 200, 300, 400 } : s.Kind == AssetKind.StandSign ? new float[] { 400, 600, 800, 1000 } : new float[] { 2000, 4000 };
-                Require(s.Kind == AssetKind.GroundOther && s.OtherStyle == "机型文字" ? Range(s.CharacterHeight, 100, 8000) : heights.Contains(s.CharacterHeight));
+                Require(s.Kind == AssetKind.GroundOther && s.OtherStyle == "机型文字"
+                    ? Range(s.CharacterHeight, 100, 8000) : SignEngine.CharacterHeightPresets(s.Kind).Contains(s.CharacterHeight));
                 string[] styles = { "方向", "位置", "强制指令" }, arrows = { "无", "←", "↖", "↑", "↗", "→", "↘", "↓", "↙" };
                 Require(styles.Contains(s.GroundStyle) && arrows.Contains(s.Arrow) && new[] { "MAX SPAN", "HP", "NO ENTRY", "机型文字" }.Contains(s.OtherStyle));
                 Require(s.Text != null && s.Latitude != null && s.Longitude != null && s.Panels.Count <= 6 &&

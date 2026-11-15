@@ -19,7 +19,7 @@
 ./build.ps1 -Test
 ```
 
-输出：`release_v3_26_2/AirportSignStudio.exe`。检查结果和样张：`validation_v3_26_2/`。成品为自包含的单个 EXE；程序运行时由 .NET 管理临时解包缓存，不需要随 EXE 携带 config、SDK 或素材文件。
+输出：`release_v3_26_3/AirportSignStudio.exe`。检查结果和样张：`validation_v3_26_3/`。成品为自包含的单个 EXE；程序运行时由 .NET 管理临时解包缓存，不需要随 EXE 携带 config、SDK 或素材文件。
 
 只有显式执行 `./build.ps1 -UiTest` 才会进行窗口检查。`tools/verify_portable.ps1` 也会启动程序窗口；它们不属于默认检查，本次发布均未运行。界面测试不能替代另一台电脑、真实跨屏或模拟器验收。
 

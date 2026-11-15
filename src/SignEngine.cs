@@ -174,6 +174,13 @@ namespace AirportSignStudio
         static readonly int[][] Gaps = { new[] {48,38,25,13}, new[] {71,57,38,19}, new[] {96,76,50,26} };
 
         public SignEngine(GlyphLibrary glyphs) { library = glyphs; }
+        internal static float[] CharacterHeightPresets(AssetKind kind) => kind switch
+        {
+            AssetKind.TaxiSign => new float[] { 200, 300, 400 },
+            AssetKind.StandSign => new float[] { 400, 600, 800, 1000 },
+            _ => new float[] { 2000, 4000 }
+        };
+
         public static string Normalize(string value)
         {
             if (value == null) return "";
@@ -487,7 +494,7 @@ namespace AirportSignStudio
             if (s.Panels.Any(p => p.Kind == "强制指令") && s.Panels.Any(p => p.Kind != "强制指令" && p.Kind != "位置"))
                 throw new ArgumentException("8.1.4：强制性指令牌只能与位置牌合设；请分开导出方向牌。");
             float h = s.CharacterHeight;
-            if (h != 200 && h != 300 && h != 400) throw new ArgumentException("滑行引导牌的字高请选择 200、300 或 400 mm。");
+            if (h != 200 && h != 300 && h != 400) throw new ArgumentException("滑行引导牌的字高请选择 0.2、0.3 或 0.4 m。");
             doc.MinimumHeight = h * 1.18f; doc.MinimumMargin = h * 0.09f;
             doc.MinimumPanelWidths = new float[s.Panels.Count];
             doc.Height = Dimension(s.AspectRatio == null ? s.Height : 0, 1.5f * h, doc.MinimumHeight, "牌面高度");
@@ -586,7 +593,7 @@ namespace AirportSignStudio
                 Text(doc, lon, "sign", h / 4, 0, (doc.Width - lonWidth) / 2 + shift, y + h * 1.75f, Black);
             }
             doc.Reference = "8.5.4—8.5.8；图 8.5.6；附录 H 字形";
-            doc.Note = s.CharacterHeight < 600 ? "400 mm 为条件受限方案；8.5.7 要求同时增设地面标志。" : "主编号字高 ≥ 600 mm；经纬度字高为主编号的 1/4。";
+            doc.Note = s.CharacterHeight < 600 ? "0.4 m 为条件受限方案；8.5.7 要求同时增设地面标志。" : "主编号字高 ≥ 0.6 m；经纬度字高为主编号的 1/4。";
         }
 
         void BuildOtherGround(SignDocument doc, Settings s, string text)
@@ -639,7 +646,7 @@ namespace AirportSignStudio
                 if (s.BlackBackground) doc.Rect(0, 0, doc.Width, doc.Height, Black);
                 Text(doc, text, "ground", h, s.GroundGap, ContentLeft(s, doc.Width, tw), (doc.Height - h) / 2, Yellow);
                 doc.Caption = text; doc.Reference = "6.2.16(7)；图 6.2.16-7 / 8";
-                doc.Note = "黄色机型文字，字高宜为 150–300 mm；浅色道面可使用黑底。";
+                doc.Note = "黄色机型文字，字高宜为 0.15–0.3 m；浅色道面可使用黑底。";
             }
             else throw new ArgumentException("请选择有效的地面标志类型。");
         }

@@ -82,6 +82,12 @@ namespace AirportSignStudio
             input.SelectedIndexChanged += delegate { if (!building) { setter(Convert.ToString(input.SelectedItem)); Notify(); } };
             Field(title, input, 29);
         }
+        void CharacterHeightChoice(Settings sign)
+        {
+            float[] heights = SignEngine.CharacterHeightPresets(sign.Kind);
+            string[] labels = heights.Select(CharacterHeightLabel).ToArray();
+            Choice("字高", labels, CharacterHeightLabel(sign.CharacterHeight), label => sign.CharacterHeight = heights[Array.IndexOf(labels, label)]);
+        }
         void TextInput(string title, string value, Action<string> setter, bool wingspan = false, bool ratio = false)
         {
             TextBox input = new TextBox { Text = value, MaxLength = 40, CharacterCasing = CharacterCasing.Upper };
@@ -111,14 +117,14 @@ namespace AirportSignStudio
             Field(title, input, 28, slider);
         }
 
-        void Number(string title, float value, float min, float max, int decimals, Action<float> setter, decimal increment = 1)
+        void Number(string title, decimal value, decimal min, decimal max, int decimals, Action<decimal> setter, decimal increment)
         {
-            NumericUpDown input = new NumericUpDown { Minimum = (decimal)min, Maximum = (decimal)max, DecimalPlaces = decimals,
-                Increment = increment, ThousandsSeparator = min >= 0 && max >= 1000, Value = (decimal)value };
+            NumericUpDown input = new NumericUpDown { Minimum = min, Maximum = max, DecimalPlaces = decimals,
+                Increment = increment, Value = value };
             input.ValueChanged += delegate
             {
                 if (building) return;
-                setter((float)input.Value); Notify();
+                setter(input.Value); Notify();
             };
             Field(title, input, 29);
         }
@@ -137,6 +143,7 @@ namespace AirportSignStudio
 
         internal static decimal ToMetres(float mm) => Math.Round((decimal)(double)mm / 1000, 5);
         internal static float ToMillimetres(decimal metres) => (float)(metres * 1000);
+        internal static string CharacterHeightLabel(float mm) => ToMetres(mm).ToString("0.#####") + " m";
 
         static NumericUpDown SizeInput(float mm, bool margin = false) => new NumericUpDown
         {
@@ -271,11 +278,12 @@ namespace AirportSignStudio
                 }
             }
             if (s.Kind == AssetKind.GroundStand) Choice("底板朝向", new[] { "↑", "←", "→", "无" }, s.Arrow, v => s.Arrow = v);
-            if (s.Kind == AssetKind.TaxiSign)
-                Choice("字高 / mm", new[] { "200", "300", "400" }, s.CharacterHeight.ToString("0"), v => s.CharacterHeight = float.Parse(v));
-            else if (s.Kind == AssetKind.StandSign)
+            bool customHeight = s.Kind == AssetKind.GroundOther && s.OtherStyle == "机型文字";
+            if (customHeight)
+                Number("字高 / m", ToMetres(s.CharacterHeight), 0.1m, 8, 5, v => s.CharacterHeight = ToMillimetres(v), 0.001m);
+            else CharacterHeightChoice(s);
+            if (s.Kind == AssetKind.StandSign)
             {
-                Choice("字高 / mm", new[] { "400", "600", "800", "1000" }, s.CharacterHeight.ToString("0"), v => s.CharacterHeight = float.Parse(v));
                 Toggle("显示经纬度", s.Coordinates, v => { s.Coordinates = v; Later(); });
                 if (s.Coordinates)
                 {
@@ -283,11 +291,9 @@ namespace AirportSignStudio
                     TextInput("经度", s.Longitude, v => s.Longitude = v);
                 }
             }
-            else
+            else if (s.Kind != AssetKind.TaxiSign)
             {
-                if (s.Kind == AssetKind.GroundOther && s.OtherStyle == "机型文字") Number("字高 / mm", s.CharacterHeight, 100, 8000, 2, v => s.CharacterHeight = v);
-                else Choice("字高 / mm", new[] { "2000", "4000" }, s.CharacterHeight.ToString("0"), v => s.CharacterHeight = float.Parse(v));
-                Number("字间距 / 字高", s.GroundGap, 0.02f, 0.5f, 4, v => s.GroundGap = v, 0.01m);
+                Number("字间距 / 字高", (decimal)s.GroundGap, 0.02m, 0.5m, 4, v => s.GroundGap = (float)v, 0.01m);
                 if (s.Kind != AssetKind.GroundOther || s.OtherStyle != "机型文字") Toggle("对比边框", s.Border, v => s.Border = v);
                 if (s.Kind == AssetKind.GroundOther && (s.OtherStyle == "MAX SPAN" || s.OtherStyle == "机型文字")) Toggle("黑色背景（取消为透明）", s.BlackBackground, v => s.BlackBackground = v);
             }

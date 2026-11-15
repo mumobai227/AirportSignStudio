@@ -33,7 +33,7 @@ Windows 离线标牌贴图工具，支持机场地面标志、滑行道指示牌
 ./build.ps1 -Test
 ```
 
-首次构建下载并校验项目内的 .NET SDK 10.0.404。输出为 `release_v3_26_2/AirportSignStudio.exe`；`-Test` 仅执行无窗口功能检查。
+首次构建下载并校验项目内的 .NET SDK 10.0.404。输出为 `release_v3_26_3/AirportSignStudio.exe`；`-Test` 仅执行无窗口功能检查。
 
 ## 目录
 

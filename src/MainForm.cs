@@ -111,7 +111,7 @@ namespace AirportSignStudio
         public MainForm()
         {
             engine = new SignEngine(glyphs);
-            Text = "机场标志工坊 3.26.2 · Airport Sign Studio";
+            Text = "机场标志工坊 3.26.3 · Airport Sign Studio";
             ForeColor = Ink;
             BackColor = StudioTheme.Surface;
             ClientSize = new Size(1380, 820); MinimumSize = new Size(1140, 700); StartPosition = FormStartPosition.CenterScreen;
@@ -216,6 +216,17 @@ namespace AirportSignStudio
             input.TextChanged += delegate { if (!building) { changed(input.Text); UpdatePreview(); } };
             Field(label, input, large ? 34 : 28);
         }
+        void CharacterHeightChoice(string label)
+        {
+            float[] heights = SignEngine.CharacterHeightPresets(current.Kind);
+            bool ground = current.Kind != AssetKind.TaxiSign && current.Kind != AssetKind.StandSign;
+            if (ground) Array.Reverse(heights);
+            string[] labels = heights.Select(height => SlotEditor.CharacterHeightLabel(height) +
+                (ground && height == 2000 ? "（受限尺寸）" : current.Kind == AssetKind.StandSign && height == 400 ? "（受限）" : "")).ToArray();
+            int selected = Array.IndexOf(heights, current.CharacterHeight);
+            Choice(label, labels, selected < 0 ? null : labels[selected],
+                value => current.CharacterHeight = heights[Array.IndexOf(labels, value)]);
+        }
         CheckBox Toggle(string label, bool value, Action<bool> changed)
         {
             CheckBox checkbox = new CheckBox { Text = label, Checked = value, Width = 267, Height = 26, Margin = new Padding(0, 0, 0, 6) };
@@ -223,11 +234,11 @@ namespace AirportSignStudio
             editor.Controls.Add(checkbox); return checkbox;
         }
 
-        void NumberInput(string label, float value, float minimum, float maximum, Action<float> changed)
+        void NumberInput(string label, float value, float minimum, float maximum, Action<decimal> changed, int decimals = 0, decimal increment = 10)
         {
             NumericUpDown input = new NumericUpDown { Minimum = (decimal)minimum, Maximum = (decimal)maximum,
-                DecimalPlaces = 0, Increment = 10, Value = (decimal)value, ThousandsSeparator = true };
-            input.ValueChanged += delegate { if (!building) { changed((float)input.Value); UpdatePreview(); } };
+                DecimalPlaces = decimals, Increment = increment, Value = (decimal)value, ThousandsSeparator = true };
+            input.ValueChanged += delegate { if (!building) { changed(input.Value); UpdatePreview(); } };
             Field(label, input, 30);
         }
 
@@ -285,7 +296,7 @@ namespace AirportSignStudio
 
             if (kind == AssetKind.GroundTaxi || kind == AssetKind.GroundStand)
             {
-                Choice("实际字高", new[] { "4.0 m", "2.0 m（受限尺寸）" }, current.CharacterHeight == 4000 ? "4.0 m" : "2.0 m（受限尺寸）", v => current.CharacterHeight = v.StartsWith("4") ? 4000 : 2000);
+                CharacterHeightChoice("实际字高");
                 NumericUpDown gap = new NumericUpDown { DecimalPlaces = 2, Minimum = 0.02m, Maximum = 0.50m, Increment = 0.01m, Value = (decimal)current.GroundGap };
                 gap.ValueChanged += delegate { if (!building) { current.GroundGap = (float)gap.Value; UpdatePreview(); } };
                 Field("字间净距 / 字高", gap, 30);
@@ -294,13 +305,13 @@ namespace AirportSignStudio
             }
             if (kind == AssetKind.TaxiSign)
             {
-                Choice("实际字高", new[] { "200 mm", "300 mm", "400 mm" }, current.CharacterHeight.ToString("0") + " mm", v => current.CharacterHeight = float.Parse(v.Split(' ')[0]));
+                CharacterHeightChoice("实际字高");
                 Hint("方向箭头自动放在文字左侧或右侧。相邻方向牌自动加黑色分隔线。", 58);
-                Hint("200 / 300 / 400 mm 按服务对象选择。强制性指令牌：飞行区指标 I 为 1/2 时至少 300 mm，3/4 时至少 400 mm。", 93);
+                Hint("0.2 / 0.3 / 0.4 m 按服务对象选择。强制性指令牌：飞行区指标 I 为 1/2 时至少 0.3 m，3/4 时至少 0.4 m。", 93);
             }
             if (kind == AssetKind.StandSign)
             {
-                Choice("机位号码实际字高", new[] { "400 mm（受限）", "600 mm", "800 mm", "1000 mm" }, current.CharacterHeight == 400 ? "400 mm（受限）" : current.CharacterHeight.ToString("0") + " mm", v => current.CharacterHeight = float.Parse(v.Split(' ')[0]));
+                CharacterHeightChoice("机位号码实际字高");
                 Toggle("在号码下方显示经纬度", current.Coordinates, v => { current.Coordinates = v; BeginInvoke(new Action(() => SelectKind(kind))); });
                 if (current.Coordinates)
                 {
@@ -313,8 +324,9 @@ namespace AirportSignStudio
             if (kind == AssetKind.GroundOther)
             {
                 if (current.OtherStyle == "机型文字")
-                    NumberInput("机型文字字高 / mm（参考 150–300）", current.CharacterHeight, 100, 8000, v => current.CharacterHeight = v);
-                else Choice("实际字高", new[] { "4.0 m", "2.0 m（受限尺寸）" }, current.CharacterHeight == 4000 ? "4.0 m" : "2.0 m（受限尺寸）", v => current.CharacterHeight = v.StartsWith("4") ? 4000 : 2000);
+                    NumberInput("机型文字字高 / m（参考 0.15–0.3）", (float)SlotEditor.ToMetres(current.CharacterHeight), 0.1f, 8,
+                        v => current.CharacterHeight = SlotEditor.ToMillimetres(v), 5, 0.001m);
+                else CharacterHeightChoice("实际字高");
                 NumericUpDown letterGap = new NumericUpDown { DecimalPlaces = 2, Minimum = 0.02m, Maximum = 0.50m, Increment = 0.01m, Value = (decimal)current.GroundGap };
                 letterGap.ValueChanged += delegate { if (!building) { current.GroundGap = (float)letterGap.Value; UpdatePreview(); } };
                 Field("字间净距 / 字高", letterGap, 30);
@@ -329,8 +341,8 @@ namespace AirportSignStudio
             };
             editor.Controls.Add(colors);
             Hint("自由尺寸 · 0 = 自动", 25);
-            if (kind != AssetKind.TaxiSign) NumberInput("整体宽度 / mm", current.Width, 0, 200000, v => current.Width = v);
-            NumberInput("整体高度 / mm", current.Height, 0, 200000, v => current.Height = v);
+            if (kind != AssetKind.TaxiSign) NumberInput("整体宽度 / mm", current.Width, 0, 200000, v => current.Width = (float)v);
+            NumberInput("整体高度 / mm", current.Height, 0, 200000, v => current.Height = (float)v);
             Hint("调整底板和留白，字形与字高保持不变。尺寸过小会提示所需最小值。组合牌可逐段设置宽度。", 65);
             inputError = new Label { Width = 267, Height = 108, ForeColor = Color.FromArgb(177, 54, 41), Font = DpiLayout.Font(this, 9, FontStyle.Regular), Margin = new Padding(0, 4, 0, 0) };
             editor.Controls.Add(inputError);

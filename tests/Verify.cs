@@ -232,6 +232,32 @@ static partial class Verify
         Assert(StudioSlider.FineDrag(8, 30, 1, ctrl, 0, 8) == 8, "Fine drag stays within the field's limits");
     }
 
+    static void VerifyCharacterHeights(SignEngine engine)
+    {
+        void CheckPresets(AssetKind kind, params decimal[] metres)
+        {
+            float[] heights = SignEngine.CharacterHeightPresets(kind);
+            Assert(heights.SequenceEqual(metres.Select(SlotEditor.ToMillimetres)) &&
+                heights.Select(SlotEditor.CharacterHeightLabel).SequenceEqual(metres.Select(m => m.ToString("0.#") + " m")),
+                "The preset labels in metres correspond to their original millimetre values");
+        }
+        CheckPresets(AssetKind.GroundTaxi, 2, 4);
+        CheckPresets(AssetKind.GroundStand, 2, 4);
+        CheckPresets(AssetKind.TaxiSign, 0.2m, 0.3m, 0.4m);
+        CheckPresets(AssetKind.StandSign, 0.4m, 0.6m, 0.8m, 1);
+        CheckPresets(AssetKind.GroundOther, 2, 4);
+
+        AtlasWorkspace state = new AtlasWorkspace();
+        state.Slots[0] = new Settings { Kind = AssetKind.GroundStand, Text = "101", Arrow = "↑", CharacterHeight = 2000 };
+        state.Slots[1] = new Settings { Kind = AssetKind.GroundOther, OtherStyle = "机型文字", Text = "A320",
+            CharacterHeight = SlotEditor.ToMillimetres(0.27538m) };
+        AtlasWorkspace restored = ProjectStore.Decode(ProjectStore.Encode(state));
+        Assert(SlotEditor.CharacterHeightLabel(restored.Slots[0].CharacterHeight) == "2 m" &&
+            SlotEditor.ToMetres(restored.Slots[1].CharacterHeight) == 0.27538m, "Legacy project units and custom precision survive the metre edit");
+        using SignDocument ground = engine.Build(restored.Slots[0]);
+        Near(ground.Height, 3500, "Changing units preserves the physical geometry of a 2 m ground stand");
+    }
+
     static void VerifyDimensionRanges(SignEngine engine)
     {
         Settings taxi = new Settings { Kind = AssetKind.TaxiSign, CharacterHeight = 300 };
@@ -1186,6 +1212,7 @@ static partial class Verify
                 VerifyAspectRatio(engine);
                 VerifyMarginsAndWholeDividers(engine);
                 VerifySliderPrecision();
+                VerifyCharacterHeights(engine);
                 VerifyDimensionRanges(engine);
                 VerifyAtlasBookAndBatch(engine, directory);
                 VerifyStandOcr(engine, directory);
