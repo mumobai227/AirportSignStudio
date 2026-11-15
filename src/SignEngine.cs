@@ -132,6 +132,8 @@ namespace AirportSignStudio
 
     public sealed class SignDocument : IDisposable
     {
+        internal float MinimumWidth, MinimumHeight, MinimumMargin;
+        internal float[] MinimumPanelWidths;
         public readonly List<Shape> Shapes = new List<Shape>();
         public float Width, Height;
         public string Caption, Reference, Note;
@@ -298,10 +300,10 @@ namespace AirportSignStudio
         static float Dimension(float requested, float automatic, float minimum, string label)
         {
             if (float.IsNaN(requested) || float.IsInfinity(requested) || requested < 0 || requested > 200000)
-                throw new ArgumentException(label + "应在 0–200000 mm 之间；0 表示自动。");
+                throw new ArgumentException(label + "应在 0–200 m 之间；0 表示自动。");
             if (requested == 0) return automatic;
             if (requested + 0.01f < minimum)
-                throw new ArgumentException(label + "太小。保持当前字高至少需要 " + Math.Ceiling(minimum) + " mm；也可设为 0 自动。");
+                throw new ArgumentException(label + "太小。保持当前字高至少需要 " + (Math.Ceiling(minimum) / 1000).ToString("0.###") + " m；也可设为 0 自动。");
             return requested;
         }
 
@@ -329,12 +331,14 @@ namespace AirportSignStudio
             return new SizeF((float)fittedWidth, (float)fittedHeight);
         }
 
-        static SizeF BoardSize(Settings s, float autoWidth, float autoHeight, float minWidth, float minHeight, string label = "底板")
+        static SizeF BoardSize(SignDocument doc, Settings s, float autoWidth, float autoHeight,
+            float minWidth, float minHeight, float minMargin, string label = "底板")
         {
+            doc.MinimumWidth = minWidth; doc.MinimumHeight = minHeight; doc.MinimumMargin = minMargin;
             double ratio = ReadAspectRatio(s.AspectRatio);
             if (ratio > 0) return FitAspectRatio(autoWidth, autoHeight, ratio);
             if ((s.LeftMargin >= 0 || s.RightMargin >= 0) && (s.AspectRatio != null || s.Width == 0) && autoWidth > 200000)
-                throw new ArgumentException("文字和左右留边超过 200000 mm。");
+                throw new ArgumentException("文字和左右留边超过 200 m。");
             if (s.AspectRatio != null) return new SizeF(autoWidth, autoHeight);
             return new SizeF(Dimension(s.Width, autoWidth, minWidth, label + "宽度"),
                 Dimension(s.Height, autoHeight, minHeight, label + "高度"));
@@ -345,13 +349,13 @@ namespace AirportSignStudio
             if (s.LeftMargin < 0 && s.RightMargin < 0)
                 return (content + automatic * 2 + extra, content + minimum * 2 + extra);
             if (s.LeftMargin >= 0 && s.LeftMargin < minimum || s.RightMargin >= 0 && s.RightMargin < minimum)
-                throw new ArgumentException("左右留边至少需要 " + Math.Ceiling(minimum) + " mm。");
+                throw new ArgumentException("左右留边至少需要 " + (Math.Ceiling(minimum) / 1000).ToString("0.###") + " m。");
             float autoWidth = content + (s.LeftMargin < 0 ? automatic : s.LeftMargin) +
                 (s.RightMargin < 0 ? automatic : s.RightMargin) + extra;
             float minWidth = content + (s.LeftMargin < 0 ? minimum : s.LeftMargin) +
                 (s.RightMargin < 0 ? minimum : s.RightMargin) + extra;
             if (autoWidth > 200000 && minWidth > 200000)
-                throw new ArgumentException("文字和左右留边超过 200000 mm。");
+                throw new ArgumentException("文字和左右留边超过 200 m。");
             return (Math.Max(autoWidth, minWidth), minWidth);
         }
 
@@ -409,7 +413,7 @@ namespace AirportSignStudio
             float edge = s.Border ? 100 : 0, ch = h + (direction && s.ArrowAbove ? ah + pad : 0);
             float minimumPad = mandatory ? pad : edge + h * 0.025f;
             var widths = SideWidths(s, content, pad, minimumPad);
-            SizeF size = BoardSize(s, widths.Auto, ch + pad * 2, widths.Minimum, ch + minimumPad * 2);
+            SizeF size = BoardSize(doc, s, widths.Auto, ch + pad * 2, widths.Minimum, ch + minimumPad * 2, minimumPad);
             doc.Width = size.Width; doc.Height = size.Height;
             Color bg = mandatory ? Red : direction ? Yellow : Black;
             Color fg = mandatory ? White : direction ? Black : Yellow;
@@ -444,7 +448,7 @@ namespace AirportSignStudio
             float tw = TextWidth(text, "ground", h, s.GroundGap), minimumPad = (s.Border ? 100 : 0) + h * 0.025f;
             float sideHead = s.Arrow == "←" || s.Arrow == "→" ? e : 0, topHead = s.Arrow == "↑" ? e : 0;
             var widths = SideWidths(s, tw, pad, minimumPad, sideHead);
-            SizeF size = BoardSize(s, widths.Auto, b + topHead, widths.Minimum, h + minimumPad * 2 + topHead);
+            SizeF size = BoardSize(doc, s, widths.Auto, b + topHead, widths.Minimum, h + minimumPad * 2 + topHead, minimumPad);
             float c = size.Width - sideHead;
             b = size.Height - topHead;
             float tx = ContentLeft(s, c, tw), ty = (b - h) / 2;
@@ -484,7 +488,9 @@ namespace AirportSignStudio
                 throw new ArgumentException("8.1.4：强制性指令牌只能与位置牌合设；请分开导出方向牌。");
             float h = s.CharacterHeight;
             if (h != 200 && h != 300 && h != 400) throw new ArgumentException("滑行引导牌的字高请选择 200、300 或 400 mm。");
-            doc.Height = Dimension(s.AspectRatio == null ? s.Height : 0, 1.5f * h, h * 1.18f, "牌面高度");
+            doc.MinimumHeight = h * 1.18f; doc.MinimumMargin = h * 0.09f;
+            doc.MinimumPanelWidths = new float[s.Panels.Count];
+            doc.Height = Dimension(s.AspectRatio == null ? s.Height : 0, 1.5f * h, doc.MinimumHeight, "牌面高度");
             var panels = new (string Text, float TextWidth, float ArrowWidth, float ContentWidth, float Width)[s.Panels.Count];
             double ratio = ReadAspectRatio(s.AspectRatio);
             List<string> captions = new List<string>();
@@ -500,9 +506,10 @@ namespace AirportSignStudio
                 // H.0.11: single runway designator uses H side margins.
                 if (mandatory && Regex.IsMatch(text, "^[0-9]{2}[LCR]?$")) pad = h;
                 float content = tw + (direction ? aw + h * 0.5f : 0);
-                var widths = SideWidths(s, content, pad, h * 0.09f);
+                var widths = SideWidths(s, content, pad, doc.MinimumMargin);
                 if ((s.LeftMargin >= 0 || s.RightMargin >= 0) && panel.Width == 0 && widths.Auto > 200000)
-                    throw new ArgumentException("文字和左右留边超过每段 200000 mm 的宽度上限。");
+                    throw new ArgumentException("文字和左右留边超过每段 200 m 的宽度上限。");
+                doc.MinimumPanelWidths[i] = widths.Minimum;
                 float w = Dimension(panel.Width, widths.Auto, widths.Minimum, "第 " + (i + 1) + " 段宽度");
                 panels[i] = (text, tw, aw, content, w);
             }
@@ -514,7 +521,7 @@ namespace AirportSignStudio
                 doc.Height = size.Height;
                 extraWidth = (size.Width - width) / panels.Length;
                 if (panels.Any(panel => panel.Width + extraWidth > 200000))
-                    throw new ArgumentException("当前长宽比会使分段宽度超过 200000 mm。");
+                    throw new ArgumentException("当前长宽比会使分段宽度超过 200 m。");
             }
             for (int i = 0; i < panels.Length; i++)
             {
@@ -567,7 +574,7 @@ namespace AirportSignStudio
             }
             float maxWidth = Math.Max(tw, Math.Max(latWidth, lonWidth));
             var widths = SideWidths(s, maxWidth, margin, h * 0.05f);
-            SizeF size = BoardSize(s, widths.Auto, autoHeight, widths.Minimum, blockHeight + h * 0.1f);
+            SizeF size = BoardSize(doc, s, widths.Auto, autoHeight, widths.Minimum, blockHeight + h * 0.1f, h * 0.05f);
             doc.Width = size.Width; doc.Height = size.Height;
             doc.Rect(0, 0, doc.Width, doc.Height, Yellow);
             float y = (doc.Height - blockHeight) / 2;
@@ -611,7 +618,7 @@ namespace AirportSignStudio
                 float tw = TextWidth("MAX SPAN", "ground", h, s.GroundGap), lw = TextWidth(lower, "ground", h, s.GroundGap);
                 float content = Math.Max(tw, lw), block = h * 2 + pad;
                 var widths = SideWidths(s, content, pad, edge + h * 0.025f);
-                SizeF size = BoardSize(s, widths.Auto, h * 2.375f, widths.Minimum, block + edge * 2 + h * 0.05f);
+                SizeF size = BoardSize(doc, s, widths.Auto, h * 2.375f, widths.Minimum, block + edge * 2 + h * 0.05f, edge + h * 0.025f);
                 doc.Width = size.Width; doc.Height = size.Height;
                 if (s.BlackBackground) doc.Rect(0, 0, doc.Width, doc.Height, Black);
                 if (edge > 0) Frame(doc, doc.Width, doc.Height, edge, Yellow);
@@ -627,7 +634,7 @@ namespace AirportSignStudio
                 if (!Regex.IsMatch(text, "^[A-Z0-9 /.-]+$")) throw new ArgumentException("机型文字支持字母、数字、空格、斜线、点和短横线。");
                 float tw = TextWidth(text, "ground", h, s.GroundGap);
                 var widths = SideWidths(s, tw, pad, 0);
-                SizeF size = BoardSize(s, widths.Auto, h + pad * 2, widths.Minimum, h, "画幅");
+                SizeF size = BoardSize(doc, s, widths.Auto, h + pad * 2, widths.Minimum, h, 0, "画幅");
                 doc.Width = size.Width; doc.Height = size.Height;
                 if (s.BlackBackground) doc.Rect(0, 0, doc.Width, doc.Height, Black);
                 Text(doc, text, "ground", h, s.GroundGap, ContentLeft(s, doc.Width, tw), (doc.Height - h) / 2, Yellow);

@@ -606,7 +606,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.26.1"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.26.2"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }
@@ -801,7 +801,8 @@ namespace AirportSignStudio
             if (!slot.Occupied) { detail.Text = "空白 · " + slot.Cell.Width.ToString("0") + " × " + slot.Cell.Height.ToString("0") + " px"; return; }
             if (slot.Error.Length > 0) { detail.Text = "槽位 " + (workspace.Selected + 1) + "：" + slot.Error; return; }
             string physicalSize = workspace.Slots[workspace.Selected]?.AspectRatio == null ? "" :
-                " · 尺寸 " + slot.PhysicalWidth.ToString("0.##") + " × " + slot.PhysicalHeight.ToString("0.##") + " mm";
+                " · 尺寸 " + SlotEditor.ToMetres(slot.PhysicalWidth).ToString("0.#####") + " × " +
+                SlotEditor.ToMetres(slot.PhysicalHeight).ToString("0.#####") + " m";
             detail.Text = "槽位 " + (workspace.Selected + 1) + " · " + slot.Caption + physicalSize + " · 图案 " + slot.Image.Width.ToString("0") + " × " + slot.Image.Height.ToString("0") + " px · " + (slot.Scale * 1000).ToString("0") + " px/m\n" +
                 "主字高 " + slot.CharacterPixels.ToString("0") + " px · 最小字高 " + slot.SmallestTextPixels.ToString("0") + " px · 参考 " + workspace.TargetTextPixels + " px";
         }

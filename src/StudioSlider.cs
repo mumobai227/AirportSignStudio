@@ -5,13 +5,14 @@ using System.Windows.Forms;
 
 namespace AirportSignStudio
 {
-    internal enum SliderScale { Linear, Millimetres, Ratio }
+    internal enum SliderScale { Linear, Ratio }
 
     internal sealed class StudioSlider : Control
     {
         readonly Func<decimal> read;
         readonly Action<decimal> write;
-        readonly decimal minimum, maximum, step;
+        readonly decimal step;
+        decimal minimum, maximum;
         readonly int decimals;
         readonly SliderScale scale;
         bool dragging;
@@ -38,6 +39,14 @@ namespace AirportSignStudio
             return slider;
         }
 
+        public void SetRange((decimal Min, decimal Max)? range)
+        {
+            Visible = range.HasValue;
+            if (!range.HasValue) return;
+            (minimum, maximum) = range.Value;
+            Invalidate();
+        }
+
         internal static decimal Speed(Keys modifiers)
         {
             if ((modifiers & Keys.Shift) != 0) return 0.01m;
@@ -62,27 +71,23 @@ namespace AirportSignStudio
             if (value >= maximum) return 1;
             if (scale == SliderScale.Ratio)
                 return Math.Log((double)(value / minimum)) / Math.Log((double)(maximum / minimum));
-            double linear = (double)((value - minimum) / (maximum - minimum));
-            // Give common millimetre values more of the rail while keeping both endpoints.
-            return scale == SliderScale.Millimetres ? Math.Pow(linear, 0.2) : linear;
+            return (double)((value - minimum) / (maximum - minimum));
         }
         internal static decimal ValueAt(double fraction, decimal minimum, decimal maximum, SliderScale scale)
         {
             if (fraction <= 0) return minimum;
             if (fraction >= 1) return maximum;
             if (scale == SliderScale.Ratio) return minimum * (decimal)Math.Pow((double)(maximum / minimum), fraction);
-            if (scale == SliderScale.Millimetres) fraction = Math.Pow(fraction, 5);
             return minimum + (maximum - minimum) * (decimal)fraction;
         }
 
-        decimal Read() => Math.Clamp(read(), minimum, maximum);
         decimal ValueAtX(int x) => ValueAt((x - Inset) / Travel, minimum, maximum, scale);
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             float scale = StudioTheme.Scale(this), center = Height / 2f, end = Inset + Travel;
-            float thumb = Inset + (float)Fraction(Read(), minimum, maximum, this.scale) * Travel;
+            float thumb = Inset + (float)Fraction(read(), minimum, maximum, this.scale) * Travel;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (Pen rail = new Pen(StudioTheme.Selected, 3 * scale))
                 e.Graphics.DrawLine(rail, Inset, center, end, center);
@@ -100,8 +105,11 @@ namespace AirportSignStudio
         {
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
-            Focus(); DragStarted?.Invoke();
-            dragValue = Read();
+            Focus();
+            if (!Visible) return;
+            dragValue = read();
+            if (Speed(ModifierKeys) != 1m && (dragValue < minimum || dragValue > maximum)) return;
+            DragStarted?.Invoke();
             dragging = true; Capture = true; lastX = e.X;
             if (Speed(ModifierKeys) == 1m)
             {
@@ -147,10 +155,10 @@ namespace AirportSignStudio
             base.OnKeyDown(e);
             if (e.KeyCode != Keys.Left && e.KeyCode != Keys.Right) return;
             decimal increment = Math.Max(Quantize(step * Speed(e.Modifiers), 0, step, decimals), (decimal)Math.Pow(10, -decimals));
-            decimal value = Read();
+            decimal value = read();
+            if (value < minimum || value > maximum) { e.Handled = true; return; }
             bool right = e.KeyCode == Keys.Right;
             decimal next = value + (right ? increment : -increment);
-            if (scale == SliderScale.Millimetres && minimum < 0 && value == minimum && right) next = 0;
             write(Quantize(next, minimum, maximum, decimals));
             e.Handled = true;
         }

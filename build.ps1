@@ -34,14 +34,14 @@ if (-not $OcrRedistPath) { throw 'Install the Visual Studio x64 C++ redistributa
 foreach ($name in $crtNames) {
     if (-not (Test-Path -LiteralPath (Join-Path $OcrRedistPath $name) -PathType Leaf)) { throw "OCR redistributable file missing: $name" }
 }
-$outputDirectory = Join-Path $projectRoot 'release_v3_26_1'
+$outputDirectory = Join-Path $projectRoot 'release_v3_26_2'
 & $dotnet publish "$projectRoot\AirportSignStudio.csproj" -c Release -r win-x64 --self-contained true -o $outputDirectory --nologo "-p:OcrRedistPath=$OcrRedistPath"
 if ($LASTEXITCODE -ne 0) { throw 'Single-file publication failed.' }
 $files = @(Get-ChildItem -LiteralPath $outputDirectory -File)
 if ($files.Count -ne 1 -or $files[0].Name -ne 'AirportSignStudio.exe') { throw 'Expected exactly one portable executable.' }
 Write-Output "Built standalone $outputDirectory\AirportSignStudio.exe"
 if ($Test -or $UiTest) {
-    $validation = Join-Path $projectRoot 'validation_v3_26_1'
+    $validation = Join-Path $projectRoot 'validation_v3_26_2'
     New-Item -ItemType Directory -Path $validation -Force | Out-Null
     & $dotnet build "$projectRoot\tests\Verify.Modern.csproj" -c Release --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Verification compilation failed.' }

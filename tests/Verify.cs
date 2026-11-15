@@ -214,29 +214,84 @@ static partial class Verify
 
     static void VerifySliderPrecision()
     {
-        const decimal start = 2400;
+        const decimal start = 2.4m;
         const System.Windows.Forms.Keys ctrl = System.Windows.Forms.Keys.Control, shift = System.Windows.Forms.Keys.Shift;
         Assert(StudioSlider.ValueAt(0.25, 0, 8, SliderScale.Linear) == 2, "A linear slider position selects its fixed value");
-        Assert(StudioSlider.ValueAt(0.5, 0, 200000, SliderScale.Millimetres) == 6250,
-            "The midpoint of a dimension rail selects the same common-scale value");
-        Assert(StudioSlider.ValueAt(0, -1, 200000, SliderScale.Millimetres) == -1 &&
-            StudioSlider.ValueAt(1, -1, 200000, SliderScale.Millimetres) == 200000,
-            "Margin endpoints select automatic and the supported maximum");
-        foreach (decimal value in new[] { -1m, 0m, 80.25m, 2400m, 200000m })
-        {
-            double position = StudioSlider.Fraction(value, -1, 200000, SliderScale.Millimetres);
-            Assert(StudioSlider.Quantize(StudioSlider.ValueAt(position, -1, 200000, SliderScale.Millimetres), -1, 200000, 2) == value,
-                "Typed millimetres and slider position use reciprocal scales");
-        }
+        Assert(StudioSlider.ValueAt(0.5, 0.8m, 4, SliderScale.Linear) == start &&
+            StudioSlider.Fraction(start, 0.8m, 4, SliderScale.Linear) == 0.5 &&
+            StudioSlider.Fraction(5.5m, 0.8m, 4, SliderScale.Linear) == 1,
+            "Rail maps absolute positions, with oversized manual values drawn at the upper endpoint");
         Assert(StudioSlider.ValueAt(0.5, 0.0001m, 10000, SliderScale.Ratio) == 1 &&
             Math.Abs(StudioSlider.Fraction(10, 0.0001m, 10000, SliderScale.Ratio) - 0.625) < 1e-9,
             "The ratio rail is centered on 1:1 and gives fixed positions to larger ratios");
-        Assert(StudioSlider.FineDrag(start, 1, 1, ctrl, 0, 200000) == 2400.1m, "Ctrl allows a tenth on a wide dimension");
-        Assert(StudioSlider.FineDrag(start, -1, 1, ctrl | shift, 0, 200000) == 2399.99m, "Shift takes priority and allows a hundredth");
+        Assert(StudioSlider.FineDrag(start, 1, 0.001m, ctrl, 0.8m, 4) == 2.4001m, "Ctrl allows a tenth of a millimetre");
+        Assert(StudioSlider.FineDrag(start, -1, 0.001m, ctrl | shift, 0.8m, 4) == 2.39999m, "Shift takes priority and allows a hundredth of a millimetre");
         decimal accumulated = 0;
         for (int i = 0; i < 10; i++) accumulated = StudioSlider.FineDrag(accumulated, 1, 1, ctrl, 0, 8);
         Assert(StudioSlider.Quantize(accumulated, 0, 8, 0) == 1, "Fractional drag deltas accumulate for integer fields");
         Assert(StudioSlider.FineDrag(8, 30, 1, ctrl, 0, 8) == 8, "Fine drag stays within the field's limits");
+    }
+
+    static void VerifyDimensionRanges(SignEngine engine)
+    {
+        Settings taxi = new Settings { Kind = AssetKind.TaxiSign, CharacterHeight = 300 };
+        taxi.Panels.Add(new SignPanel());
+        Settings stand = new Settings { Kind = AssetKind.StandSign, CharacterHeight = 600, Text = "23" };
+        Settings[] samples =
+        {
+            new Settings(), new Settings { Kind = AssetKind.GroundStand, Text = "101L", Arrow = "↑" }, taxi, stand,
+            new Settings { Kind = AssetKind.GroundOther, OtherStyle = "HP", Text = "4" },
+            new Settings { Kind = AssetKind.GroundOther, OtherStyle = "NO ENTRY" },
+            new Settings { Kind = AssetKind.GroundOther, OtherStyle = "MAX SPAN", Text = "36" },
+            new Settings { Kind = AssetKind.GroundOther, OtherStyle = "机型文字", Text = "A320/B737", CharacterHeight = 300 }
+        };
+        foreach (Settings sample in samples)
+        {
+            using SignDocument doc = engine.Build(sample);
+            var limits = SlotEditor.CommonDimensionLimits(sample);
+            bool panel = sample.Kind == AssetKind.TaxiSign;
+            Action<Settings, float> setWidth = panel ? (s, v) => s.Panels[0].Width = v : (s, v) => s.Width = v;
+            CheckRange(panel ? doc.MinimumPanelWidths[0] : doc.MinimumWidth, limits.Width, setWidth);
+            CheckRange(doc.MinimumHeight, limits.Height, (s, v) => s.Height = v);
+            CheckRange(doc.MinimumMargin, limits.Margin, (s, v) => s.LeftMargin = v);
+            CheckRange(doc.MinimumMargin, limits.Margin, (s, v) => s.RightMargin = v);
+
+            void CheckRange(float minimum, int commonLimit, Action<Settings, float> set)
+            {
+                var range = SlotEditor.DimensionRange(engine, sample, minimum, commonLimit, set);
+                Assert(range.HasValue && range.Value.Min >= SlotEditor.ToMetres(minimum) &&
+                    range.Value.Max <= commonLimit / 1000m, "Rail intersects the valid geometry and the preset limit");
+                foreach (double position in new[] { 0d, 0.5d, 1d })
+                {
+                    Settings draft = sample.Copy();
+                    decimal value = StudioSlider.ValueAt(position, range.Value.Min, range.Value.Max, SliderScale.Linear);
+                    set(draft, SlotEditor.ToMillimetres(value));
+                    using SignDocument accepted = engine.Build(draft);
+                    Assert(accepted.Width > 0 && accepted.Height > 0, "Rail endpoints and midpoint render successfully");
+                }
+            }
+        }
+        stand.Width = 1400; stand.RightMargin = 100;
+        using (SignDocument fixedBoard = engine.Build(stand))
+        {
+            var range = SlotEditor.DimensionRange(engine, stand, fixedBoard.MinimumMargin,
+                SlotEditor.CommonDimensionLimits(stand).Margin, (s, v) => s.LeftMargin = v);
+            Assert(range.HasValue && range.Value.Max < 0.6m, "A fixed board and opposite margin shorten the rail");
+            stand.LeftMargin = SlotEditor.ToMillimetres(range.Value.Max);
+            using SignDocument accepted = engine.Build(stand);
+            stand.LeftMargin += 1;
+            Throws(() => engine.Build(stand).Dispose(), "One millimetre above the shortened rail no longer fits");
+        }
+        stand.Width = SlotEditor.ToMillimetres(5.50025m);
+        stand.Height = SlotEditor.ToMillimetres(3.5m);
+        stand.LeftMargin = SlotEditor.ToMillimetres(0.80125m);
+        AtlasWorkspace page = new AtlasWorkspace();
+        page.Slots[0] = stand;
+        Settings restored = ProjectStore.Decode(ProjectStore.Encode(page)).Slots[0];
+        using SignDocument oversized = engine.Build(restored);
+        Assert(SlotEditor.ToMetres(restored.Width) == 5.50025m && SlotEditor.ToMetres(restored.Height) == 3.5m &&
+            SlotEditor.ToMetres(restored.LeftMargin) == 0.80125m && Math.Abs(oversized.Width - 5500.25f) < 0.01f,
+            "Larger manual sizes retain their millimetre values when saved and reopened");
     }
 
     static void VerifyMarginsAndWholeDividers(SignEngine engine)
@@ -1131,6 +1186,7 @@ static partial class Verify
                 VerifyAspectRatio(engine);
                 VerifyMarginsAndWholeDividers(engine);
                 VerifySliderPrecision();
+                VerifyDimensionRanges(engine);
                 VerifyAtlasBookAndBatch(engine, directory);
                 VerifyStandOcr(engine, directory);
                 VerifyAtlas(engine, directory);
