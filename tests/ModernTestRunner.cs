@@ -17,7 +17,9 @@ static class ModernTestRunner
         }
         if (args[0] == "--chart-check")
         {
-            string[] ids = AirportSignStudio.BatchSigns.FromPdfs(args.Skip(1), out bool table);
+            var result = AirportSignStudio.BatchSigns.FromPdfs(args.Skip(1));
+            string[] ids = result.Rows;
+            bool table = ids.Length > 0;
             Console.WriteLine((table ? "Coordinate table" : "No confirmed stands") + ": " + ids.Length);
             foreach (string id in ids) Console.WriteLine(id);
             return 0;

@@ -8,6 +8,9 @@ using System.Globalization;
 using System.Linq;
 using System.Xml.Linq;
 using AirportSignStudio;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 static partial class Verify
 {
@@ -123,6 +126,41 @@ static partial class Verify
         Assert(BatchSigns.ImportFiles(new[] { stands }).Rows.SequenceEqual(ids), "Image files use the batch importer");
         string taxiways = DrawChart("ocr-taxiway-check.png", "Taxiway Coordinates");
         Throws(() => StandChartOcr.Read(taxiways, out _), "Taxiway coordinate table cannot become a stand list");
+        string scanPath = Path.Combine(directory, "scan-test.pdf");
+        PdfDocumentBuilder scan = new PdfDocumentBuilder();
+        scan.AddPage(700, 270).AddPng(File.ReadAllBytes(stands), new PdfRectangle(0, 0, 700, 270));
+        File.WriteAllBytes(scanPath, scan.Build());
+        var scanned = BatchSigns.FromPdfs(new[] { scanPath });
+        Assert(scanned.Rows.SequenceEqual(ids) && scanned.Review == 1 && scanned.OcrPages == 1,
+            "An image-only PDF imports directly and preserves missing-ID review rows");
+        Assert(BatchSigns.ImportFiles(new[] { scanPath }).Rows.SequenceEqual(ids), "Scanned PDF is accepted by the batch import workflow");
+
+        string mixedPath = Path.Combine(directory, "mixed-stand-check-0P.pdf");
+        PdfDocumentBuilder mixed = new PdfDocumentBuilder();
+        var font = mixed.AddStandard14Font(Standard14Font.Helvetica);
+        var textPage = mixed.AddPage(700, 270);
+        textPage.AddText("Aircraft Stand Coordinates", 20, new PdfPoint(15, 250), font);
+        textPage.AddText("901L N40 28'58.9\" E111 34'19.7\"", 14, new PdfPoint(15, 220), font);
+        var tiled = mixed.AddPage(700, 270);
+        using (Bitmap original = new Bitmap(stands))
+            foreach (int left in new[] { 0, 350 })
+            {
+                using Bitmap half = original.Clone(new Rectangle(left, 0, 350, 270), PixelFormat.Format24bppRgb);
+                using MemoryStream png = new MemoryStream();
+                half.Save(png, ImageFormat.Png);
+                tiled.AddPng(png.ToArray(), new PdfRectangle(left, 0, left + 350, 270));
+            }
+        File.WriteAllBytes(mixedPath, mixed.Build());
+        var both = BatchSigns.FromPdfs(new[] { mixedPath });
+        Assert(both.Rows.SequenceEqual(new[] { "001", "901L", "A1", BatchSigns.MissingStand }) && both.OcrPages == 1,
+            "Mixed PDF imports vector text directly and renders its tiled scan page for OCR");
+
+        string taxiPdf = Path.Combine(directory, "taxiway-scan-check.pdf");
+        PdfDocumentBuilder taxiScan = new PdfDocumentBuilder();
+        taxiScan.AddPage(700, 270).AddPng(File.ReadAllBytes(taxiways), new PdfRectangle(0, 0, 700, 270));
+        File.WriteAllBytes(taxiPdf, taxiScan.Build());
+        Assert(BatchSigns.FromPdfs(new[] { taxiPdf }).Rows.Length == 0,
+            "PDF screenshot OCR does not turn taxiway tables into a stand list");
         AtlasBook book = new AtlasBook(new AtlasWorkspace());
         Settings template = new Settings { Kind = AssetKind.GroundStand, Arrow = "↑" };
         Throws(() => BatchSigns.Add(book, engine, "001\n" + StandChartOcr.ReviewPrefix + "102]", template, true),

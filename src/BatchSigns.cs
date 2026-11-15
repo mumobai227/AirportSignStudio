@@ -52,37 +52,81 @@ namespace AirportSignStudio
             }
         }
 
-        public static string[] FromPdfs(IEnumerable<string> files, out bool table)
+        public static (string[] Rows, int Review, int OcrPages) FromPdfs(IEnumerable<string> files)
         {
             List<string> confirmed = new List<string>();
+            List<string> reviewRows = new List<string>();
+            int ocrPages = 0;
             foreach (string path in WithCompanionTables(files))
             {
                 List<string> ids = new List<string>();
+                List<string> unresolvedPages = new List<string>();
                 bool namedTable = IsStandTableName(path);
                 bool isTable = namedTable;
                 using PdfDocument pdf = PdfDocument.Open(path);
+                PdfPageRaster raster = null;
                 foreach (var page in pdf.GetPages())
                 {
                     string text = ContentOrderTextExtractor.GetText(page);
-                    if (!namedTable && !HasStandHeading(text)) continue;
-                    isTable = true;
-                    ids.AddRange(CoordinateIds(text));
-                    var words = page.GetWords(NearestNeighbourWordExtractor.Instance).OrderByDescending(word => word.BoundingBox.Bottom).ToArray();
-                    int start = 0;
-                    while (start < words.Length)
+                    if (HasTaxiwayHeading(text)) continue;
+                    bool standPage = namedTable || HasStandHeading(text);
+                    isTable |= standPage;
+                    if (standPage)
                     {
-                        int end = start + 1;
-                        while (end < words.Length && words[start].BoundingBox.Bottom - words[end].BoundingBox.Bottom <= 2) end++;
-                        ids.AddRange(CoordinateIds(string.Join(" ", words[start..end].OrderBy(word => word.BoundingBox.Left).Select(word => word.Text))));
-                        start = end;
+                        int before = ids.Count;
+                        ids.AddRange(CoordinateIds(text));
+                        var words = page.GetWords(NearestNeighbourWordExtractor.Instance).OrderByDescending(word => word.BoundingBox.Bottom).ToArray();
+                        int start = 0;
+                        while (start < words.Length)
+                        {
+                            int end = start + 1;
+                            while (end < words.Length && words[start].BoundingBox.Bottom - words[end].BoundingBox.Bottom <= 2) end++;
+                            ids.AddRange(CoordinateIds(string.Join(" ", words[start..end].OrderBy(word => word.BoundingBox.Left).Select(word => word.Text))));
+                            start = end;
+                        }
+                        if (ids.Count > before) continue;
+                    }
+                    else if (page.Letters.Count >= 40 && (page.NumberOfImages == 0 ||
+                        page.GetImages().Sum(img => img.BoundingBox.Width * img.BoundingBox.Height) < page.Width * page.Height * 0.30))
+                        continue;
+
+                    try
+                    {
+                        string[] rows = PdfPageRaster.ReadFullPageImage(page);
+                        if (rows == null)
+                        {
+                            raster ??= new PdfPageRaster(path);
+                            using Bitmap image = raster.Render(page.Number);
+                            rows = StandChartOcr.Read(image, out _);
+                        }
+                        ocrPages++;
+                        foreach (string row in rows)
+                            if (IsReviewRow(row)) reviewRows.Add(row); else ids.Add(row);
+                    }
+                    catch (StandChartRejectedException)
+                    {
+                        if (standPage) unresolvedPages.Add(StandChartOcr.ReviewPrefix + "PDF 第 " + page.Number + " 页未识别]");
                     }
                 }
-                if (isTable && ids.Count == 0)
-                    throw new ArgumentException(Path.GetFileName(path) + " 中没有读出机位坐标行。请将扫描页截为带标题和表头的图片，再导入识别。");
+                if (isTable && ids.Count == 0 && unresolvedPages.Count > 0)
+                    throw new ArgumentException(Path.GetFileName(path) + " 中没有读出可用机位编号。请检查 PDF 是否包含清晰的 0P 机位坐标表。");
                 confirmed.AddRange(ids);
+                reviewRows.AddRange(unresolvedPages);
             }
-            table = confirmed.Count > 0;
-            return confirmed.Distinct().OrderBy(id => Regex.Replace(id, @"\d+", number => number.Value.PadLeft(5, '0')), StringComparer.Ordinal).ToArray();
+            string[] ordered = confirmed.Distinct().OrderBy(id => Regex.Replace(id, @"\d+", number => number.Value.PadLeft(5, '0')), StringComparer.Ordinal)
+                .Concat(reviewRows).ToArray();
+            return (ordered, reviewRows.Count, ocrPages);
+        }
+
+        static bool IsReviewRow(string value)
+        {
+            return value == MissingStand || value.StartsWith(StandChartOcr.ReviewPrefix, StringComparison.Ordinal);
+        }
+
+        static bool HasTaxiwayHeading(string text)
+        {
+            string compact = Regex.Replace(SignEngine.Normalize(text), @"\s+", "");
+            return Regex.IsMatch(compact, @"滑行道(?:交叉点|位置|交叉口)?坐标|TAXIWAY(?:INTERSECTION|LOCATION|POSITION)?COORDINATES");
         }
 
         internal static bool HasStandHeading(string text)
@@ -143,9 +187,17 @@ namespace AirportSignStudio
         {
             List<string> imported = new List<string>();
             int review = 0;
+            int ocrPages = 0;
             string[] pdf = files.Where(path => Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)).ToArray();
             bool table = true;
-            if (pdf.Length > 0) imported.AddRange(FromPdfs(pdf, out table));
+            if (pdf.Length > 0)
+            {
+                var result = FromPdfs(pdf);
+                imported.AddRange(result.Rows);
+                table = result.Rows.Length > 0;
+                review += result.Review;
+                ocrPages = result.OcrPages;
+            }
             foreach (string path in files.Except(pdf))
             {
                 if (StandChartOcr.IsImage(path))
@@ -169,6 +221,7 @@ namespace AirportSignStudio
                 }
             }
             string note = review > 0 ? $"{review} 条记录待核对。请修正或删除带方括号的行。" :
+                ocrPages > 0 ? $"已识别 {ocrPages} 页扫描版机位表。请对照原图核对。" :
                 !table ? "已跳过普通平面图，机位编号需有坐标表依据。" : "请对照原图检查编号清单。";
             return (imported.ToArray(), note);
         }
@@ -213,7 +266,7 @@ namespace AirportSignStudio
             {
                 string value = values[i];
                 Settings sign = template.Copy();
-                if (value == MissingStand || value.StartsWith(StandChartOcr.ReviewPrefix, StringComparison.Ordinal) ||
+                if (IsReviewRow(value) ||
                     (sign.Kind == AssetKind.GroundStand || sign.Kind == AssetKind.StandSign) && !Stand.IsMatch(value))
                     throw new ArgumentException("请核对机位编号：" + value);
                 if (sign.Kind == AssetKind.TaxiSign && sign.Panels.Count > 0) sign.Panels[0].Text = value;

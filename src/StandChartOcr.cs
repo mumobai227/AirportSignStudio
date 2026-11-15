@@ -12,6 +12,11 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace AirportSignStudio
 {
+    internal sealed class StandChartRejectedException : ArgumentException
+    {
+        public StandChartRejectedException(string message) : base(message) { }
+    }
+
     internal static class StandChartOcr
     {
         internal const string ReviewPrefix = "[待核对:";
@@ -58,6 +63,11 @@ namespace AirportSignStudio
         public static string[] Read(string path, out int review)
         {
             using Bitmap input = new Bitmap(path);
+            return Read(input, out review);
+        }
+
+        public static string[] Read(Bitmap input, out int review)
+        {
             if ((long)input.Width * input.Height > 24000000)
                 throw new ArgumentException("截图过大，请裁到完整的机位坐标表和表头后再导入。");
             Pixels pixels = new Pixels(input);
@@ -67,7 +77,7 @@ namespace AirportSignStudio
             string[] title = HeadingLines(pixels, heading).Select(area => Compact(recognizer.Read(area).Text)).ToArray();
             bool identifiedTable = title.Any(text => BatchSigns.HasStandHeading(text) || ChartNumber.IsMatch(text));
             if (title.Any(IsTaxiway) && !title.Any(BatchSigns.HasStandHeading))
-                throw new ArgumentException("截图是滑行道表。请导入 0P 机位坐标表截图。");
+                throw new StandChartRejectedException("识别到滑行道表。请导入 0P 机位坐标表。");
 
             var rows = new List<string>();
             review = 0;
@@ -96,7 +106,7 @@ namespace AirportSignStudio
                 }
             }
             if (rows.Count == 0)
-                throw new ArgumentException("没有识别出可核对的机位表行。请保留机位坐标表标题、列名和完整表格边线。");
+                throw new StandChartRejectedException("没有识别出可核对的机位表行。请保留机位坐标表标题、列名和完整表格边线。");
             return rows.ToArray();
         }
 
@@ -125,7 +135,7 @@ namespace AirportSignStudio
 
         static (int[] Columns, int[] Rows) FindGrid(Pixels pixels)
         {
-            ArgumentException Error() { return new ArgumentException("没有找到清晰的机位坐标表网格。请导入带表头和边线的 0P 截图。"); }
+            StandChartRejectedException Error() { return new StandChartRejectedException("没有找到清晰的机位坐标表网格。请导入带表头和边线的 0P 表。"); }
             int[] horizontal = Runs(Enumerable.Range(0, pixels.Height)
                 .Where(y => pixels.InkOnRow(y, 0, pixels.Width) >= pixels.Width * .60), 1).Select(Centre).ToArray();
             if (horizontal.Length < 3) throw Error();
