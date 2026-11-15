@@ -14,7 +14,7 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>3.26.0</Version>
+    <Version>3.26.1</Version>
     <StartupObject>AirportSignStudio.MainForm</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets/app.ico</ApplicationIcon>

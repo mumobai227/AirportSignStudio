@@ -5,39 +5,35 @@ using System.Windows.Forms;
 
 namespace AirportSignStudio
 {
+    internal enum SliderScale { Linear, Millimetres, Ratio }
+
     internal sealed class StudioSlider : Control
     {
         readonly Func<decimal> read;
         readonly Action<decimal> write;
         readonly decimal minimum, maximum, step;
         readonly int decimals;
-        readonly Func<decimal> relativeStep;
-        readonly Func<decimal, decimal> startValue;
+        readonly SliderScale scale;
         bool dragging;
         int lastX;
-        double position;
         decimal dragValue;
-        decimal dragOrigin, dragStep;
         public event Action DragStarted, DragEnded;
 
         public StudioSlider(Func<decimal> read, Action<decimal> write, decimal minimum, decimal maximum, decimal step, int decimals,
-            Func<decimal> relativeStep = null, Func<decimal, decimal> startValue = null)
+            SliderScale scale = SliderScale.Linear)
         {
             this.read = read; this.write = write; this.minimum = minimum; this.maximum = maximum;
-            this.step = step; this.decimals = decimals;
-            this.relativeStep = relativeStep; this.startValue = startValue;
+            this.step = step; this.decimals = decimals; this.scale = scale;
             SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
-            TabStop = true; Cursor = relativeStep == null ? Cursors.Hand : Cursors.SizeWE; AccessibleRole = AccessibleRole.Slider;
-            AccessibleDescription = (relativeStep == null ? "" : "从当前值向左右拖动调整。") +
-                "左右方向键调整。Ctrl 为十分之一速度，Shift 为百分之一速度。";
+            TabStop = true; Cursor = Cursors.Hand; AccessibleRole = AccessibleRole.Slider;
+            AccessibleDescription = "点击或拖动到所需数值。左右方向键调整。Ctrl 为十分之一速度，Shift 为百分之一速度。";
         }
 
-        public static StudioSlider ForNumber(NumericUpDown number, Func<decimal> relativeStep = null,
-            Func<decimal, decimal> startValue = null, decimal? minimum = null)
+        public static StudioSlider ForNumber(NumericUpDown number, SliderScale scale = SliderScale.Linear)
         {
             decimal current = number.Value;
-            StudioSlider slider = new StudioSlider(() => current, value => number.Value = value, minimum ?? number.Minimum,
-                number.Maximum, number.Increment, number.DecimalPlaces, relativeStep, startValue);
+            StudioSlider slider = new StudioSlider(() => current, value => number.Value = value, number.Minimum,
+                number.Maximum, number.Increment, number.DecimalPlaces, scale);
             number.ValueChanged += delegate { current = number.Value; slider.Invalidate(); };
             return slider;
         }
@@ -60,32 +56,39 @@ namespace AirportSignStudio
 
         float Inset { get { return 6 * StudioTheme.Scale(this); } }
         float Travel { get { return Math.Max(1, Width - Inset * 2); } }
-        decimal StartValue() { return Math.Clamp(startValue == null ? read() : startValue(read()), minimum, maximum); }
-        double Fraction(decimal value)
+        internal static double Fraction(decimal value, decimal minimum, decimal maximum, SliderScale scale)
         {
-            value = Math.Clamp(value, minimum, maximum);
-            return (double)((value - minimum) / (maximum - minimum));
+            if (value <= minimum) return 0;
+            if (value >= maximum) return 1;
+            if (scale == SliderScale.Ratio)
+                return Math.Log((double)(value / minimum)) / Math.Log((double)(maximum / minimum));
+            double linear = (double)((value - minimum) / (maximum - minimum));
+            // Give common millimetre values more of the rail while keeping both endpoints.
+            return scale == SliderScale.Millimetres ? Math.Pow(linear, 0.2) : linear;
         }
-        decimal ValueAt(double fraction)
+        internal static decimal ValueAt(double fraction, decimal minimum, decimal maximum, SliderScale scale)
         {
             if (fraction <= 0) return minimum;
             if (fraction >= 1) return maximum;
+            if (scale == SliderScale.Ratio) return minimum * (decimal)Math.Pow((double)(maximum / minimum), fraction);
+            if (scale == SliderScale.Millimetres) fraction = Math.Pow(fraction, 5);
             return minimum + (maximum - minimum) * (decimal)fraction;
         }
+
+        decimal Read() => Math.Clamp(read(), minimum, maximum);
+        decimal ValueAtX(int x) => ValueAt((x - Inset) / Travel, minimum, maximum, scale);
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             float scale = StudioTheme.Scale(this), center = Height / 2f, end = Inset + Travel;
-            float thumb = relativeStep == null ? Inset + (float)Fraction(read()) * Travel : Width / 2f;
-            if (relativeStep != null && dragging)
-                thumb = Math.Clamp(thumb + (float)((dragValue - dragOrigin) / dragStep) * scale, Inset, end);
+            float thumb = Inset + (float)Fraction(Read(), minimum, maximum, this.scale) * Travel;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (Pen rail = new Pen(StudioTheme.Selected, 3 * scale))
                 e.Graphics.DrawLine(rail, Inset, center, end, center);
             Color active = Enabled ? StudioTheme.Ink : StudioTheme.Line;
             using (Pen fill = new Pen(active, 3 * scale))
-                e.Graphics.DrawLine(fill, relativeStep == null ? Inset : Width / 2f, center, thumb, center);
+                e.Graphics.DrawLine(fill, Inset, center, thumb, center);
             using (Brush knob = new SolidBrush(active))
                 e.Graphics.FillEllipse(knob, thumb - 4 * scale, center - 4 * scale, 8 * scale, 8 * scale);
             if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics, ClientRectangle);
@@ -98,20 +101,11 @@ namespace AirportSignStudio
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
             Focus(); DragStarted?.Invoke();
-            dragValue = StartValue();
-            if (relativeStep != null) { dragOrigin = dragValue; dragStep = relativeStep(); }
+            dragValue = Read();
             dragging = true; Capture = true; lastX = e.X;
-            if (relativeStep != null)
+            if (Speed(ModifierKeys) == 1m)
             {
-                Invalidate();
-                return;
-            }
-            position = Fraction(dragValue);
-            double clicked = Math.Clamp((e.X - Inset) / Travel, 0f, 1f);
-            if (Speed(ModifierKeys) == 1m && Math.Abs(clicked - position) * Travel > Inset)
-            {
-                position = clicked;
-                dragValue = ValueAt(position);
+                dragValue = ValueAtX(e.X);
                 write(Quantize(dragValue, minimum, maximum, decimals));
             }
         }
@@ -119,25 +113,13 @@ namespace AirportSignStudio
         {
             base.OnMouseMove(e);
             if (!dragging || e.X == lastX) return;
-            decimal speed = Speed(ModifierKeys);
-            double delta = (e.X - lastX) / (double)Travel;
-            if (relativeStep != null)
-            {
-                decimal pixels = (e.X - lastX) / (decimal)StudioTheme.Scale(this);
-                dragValue = FineDrag(dragValue, pixels, speed == 1 ? dragStep : step, ModifierKeys, minimum, maximum);
-                Invalidate();
-            }
-            else if (speed == 1)
-            {
-                position = Math.Clamp(position + delta, 0, 1);
-                dragValue = ValueAt(position);
-            }
+            Keys modifiers = ModifierKeys;
+            if (Speed(modifiers) == 1m)
+                dragValue = ValueAtX(e.X);
             else
             {
-                // Use the field's unit for precision, even when its total range is large.
                 decimal pixels = (e.X - lastX) / (decimal)StudioTheme.Scale(this);
-                dragValue = FineDrag(dragValue, pixels, step, ModifierKeys, minimum, maximum);
-                position = Fraction(dragValue);
+                dragValue = FineDrag(dragValue, pixels, step, modifiers, minimum, maximum);
             }
             lastX = e.X;
             write(Quantize(dragValue, minimum, maximum, decimals));
@@ -165,7 +147,11 @@ namespace AirportSignStudio
             base.OnKeyDown(e);
             if (e.KeyCode != Keys.Left && e.KeyCode != Keys.Right) return;
             decimal increment = Math.Max(Quantize(step * Speed(e.Modifiers), 0, step, decimals), (decimal)Math.Pow(10, -decimals));
-            write(Quantize(StartValue() + (e.KeyCode == Keys.Right ? increment : -increment), minimum, maximum, decimals));
+            decimal value = Read();
+            bool right = e.KeyCode == Keys.Right;
+            decimal next = value + (right ? increment : -increment);
+            if (scale == SliderScale.Millimetres && minimum < 0 && value == minimum && right) next = 0;
+            write(Quantize(next, minimum, maximum, decimals));
             e.Handled = true;
         }
     }

@@ -216,12 +216,21 @@ static partial class Verify
     {
         const decimal start = 2400;
         const System.Windows.Forms.Keys ctrl = System.Windows.Forms.Keys.Control, shift = System.Windows.Forms.Keys.Shift;
-        decimal groundStep = SlotEditor.MillimetresPerPixel(4000);
-        decimal boardStep = SlotEditor.MillimetresPerPixel(300);
-        Assert(StudioSlider.FineDrag(500, 10, groundStep, System.Windows.Forms.Keys.None, 0, 200000) == 600,
-            "Ground margin drag uses the sign scale, even though the input accepts larger custom dimensions");
-        Assert(StudioSlider.FineDrag(2400, -10, boardStep, System.Windows.Forms.Keys.None, 0, 200000) == 2390,
-            "Smaller board dimensions use a smaller drag step");
+        Assert(StudioSlider.ValueAt(0.25, 0, 8, SliderScale.Linear) == 2, "A linear slider position selects its fixed value");
+        Assert(StudioSlider.ValueAt(0.5, 0, 200000, SliderScale.Millimetres) == 6250,
+            "The midpoint of a dimension rail selects the same common-scale value");
+        Assert(StudioSlider.ValueAt(0, -1, 200000, SliderScale.Millimetres) == -1 &&
+            StudioSlider.ValueAt(1, -1, 200000, SliderScale.Millimetres) == 200000,
+            "Margin endpoints select automatic and the supported maximum");
+        foreach (decimal value in new[] { -1m, 0m, 80.25m, 2400m, 200000m })
+        {
+            double position = StudioSlider.Fraction(value, -1, 200000, SliderScale.Millimetres);
+            Assert(StudioSlider.Quantize(StudioSlider.ValueAt(position, -1, 200000, SliderScale.Millimetres), -1, 200000, 2) == value,
+                "Typed millimetres and slider position use reciprocal scales");
+        }
+        Assert(StudioSlider.ValueAt(0.5, 0.0001m, 10000, SliderScale.Ratio) == 1 &&
+            Math.Abs(StudioSlider.Fraction(10, 0.0001m, 10000, SliderScale.Ratio) - 0.625) < 1e-9,
+            "The ratio rail is centered on 1:1 and gives fixed positions to larger ratios");
         Assert(StudioSlider.FineDrag(start, 1, 1, ctrl, 0, 200000) == 2400.1m, "Ctrl allows a tenth on a wide dimension");
         Assert(StudioSlider.FineDrag(start, -1, 1, ctrl | shift, 0, 200000) == 2399.99m, "Shift takes priority and allows a hundredth");
         decimal accumulated = 0;

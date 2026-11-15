@@ -96,57 +96,24 @@ namespace AirportSignStudio
                         return number == 0 ? 1 : (decimal)Math.Clamp(number, 0.0001, 10000);
                     }
                     catch (ArgumentException) { return 1; }
-                }, v => input.Text = v.ToString("0.####", CultureInfo.InvariantCulture) + ":1", 0.0001m, 10000, 0.01m, 4, () => 0.01m);
+                }, v => input.Text = v.ToString("0.####", CultureInfo.InvariantCulture) + ":1", 0.0001m, 10000, 0.01m, 4, SliderScale.Ratio);
             }
+            if (slider != null) input.TextChanged += delegate { slider.Invalidate(); };
             Field(title, input, 28, slider);
-        }
-        internal static decimal MillimetresPerPixel(float characterHeight) { return Math.Max(1, Math.Round((decimal)characterHeight / 400)); }
-        decimal MillimetresPerPixel() { return MillimetresPerPixel(settings.CharacterHeight); }
-
-        decimal AutomaticSize(Settings source, bool width, int panel = -1)
-        {
-            Settings draft = source.Copy();
-            draft.Width = draft.Height = 0;
-            draft.AspectRatio = null;
-            if (panel >= 0)
-            {
-                SignPanel segment = draft.Panels[panel];
-                segment.Width = 0;
-                draft.Panels.Clear();
-                draft.Panels.Add(segment);
-            }
-            try
-            {
-                using SignDocument doc = engine.Build(draft);
-                return (decimal)(width ? doc.Width : doc.Height);
-            }
-            catch (ArgumentException) { return (decimal)source.CharacterHeight; }
-        }
-
-        static decimal AutomaticMargin(Settings s)
-        {
-            decimal h = (decimal)s.CharacterHeight;
-            if (s.Kind == AssetKind.TaxiSign) return h / 2;
-            if (s.Kind == AssetKind.StandSign) return h / (s.Coordinates ? 8 : 12);
-            if ((s.Kind == AssetKind.GroundTaxi && s.GroundStyle == "强制指令") ||
-                (s.Kind == AssetKind.GroundOther && s.OtherStyle == "NO ENTRY")) return s.Border ? 600 : 500;
-            return h / 8;
         }
 
         void Number(string title, float value, float min, float max, int decimals, Action<float> setter, decimal increment = 1,
-            Func<decimal> automatic = null)
+            SliderScale scale = SliderScale.Linear)
         {
             NumericUpDown input = new NumericUpDown { Minimum = (decimal)min, Maximum = (decimal)max, DecimalPlaces = decimals,
                 Increment = increment, ThousandsSeparator = min >= 0 && max >= 1000, Value = (decimal)value };
-            StudioSlider slider = automatic == null ? null : StudioSlider.ForNumber(input, MillimetresPerPixel,
-                current => (min == -1 ? current < 0 : current == 0) ? automatic() : current, 0);
             input.ValueChanged += delegate
             {
                 if (building) return;
                 if (input.Value is < 0 and > -1) { input.Value = -1; return; }
                 setter((float)input.Value); Notify();
             };
-            Field(title, input, 29, slider);
+            Field(title, input, 29, StudioSlider.ForNumber(input, scale));
         }
         void Toggle(string title, bool value, Action<bool> setter)
         {
@@ -229,12 +196,12 @@ namespace AirportSignStudio
             {
                 Hint("0 = 自动", 25);
                 if (s.Kind != AssetKind.TaxiSign)
-                    Number("整体宽度 / mm", s.Width, 0, 200000, 2, v => s.Width = v, automatic: () => AutomaticSize(s, true));
-                Number("整体高度 / mm", s.Height, 0, 200000, 2, v => s.Height = v, automatic: () => AutomaticSize(s, false));
+                    Number("整体宽度 / mm", s.Width, 0, 200000, 2, v => s.Width = v, scale: SliderScale.Millimetres);
+                Number("整体高度 / mm", s.Height, 0, 200000, 2, v => s.Height = v, scale: SliderScale.Millimetres);
             }
             Hint(s.Kind == AssetKind.TaxiSign ? "各段左右留边 · −1 = 自动" : "左右留边 · −1 = 自动", 25);
-            Number("左留边 / mm", s.LeftMargin, -1, 200000, 2, v => s.LeftMargin = v, automatic: () => AutomaticMargin(s));
-            Number("右留边 / mm", s.RightMargin, -1, 200000, 2, v => s.RightMargin = v, automatic: () => AutomaticMargin(s));
+            Number("左留边 / mm", s.LeftMargin, -1, 200000, 2, v => s.LeftMargin = v, scale: SliderScale.Millimetres);
+            Number("右留边 / mm", s.RightMargin, -1, 200000, 2, v => s.RightMargin = v, scale: SliderScale.Millimetres);
             DpiLayout.ScaleNewChildren(this); ResumeLayout(true); building = false;
         }
 
@@ -296,9 +263,7 @@ namespace AirportSignStudio
                 if (building || syncingWidth || grid.CurrentCell == null) return;
                 grid.Rows[grid.CurrentCell.RowIndex].Cells[3].Value = panelWidth.Value.ToString("0.##");
             };
-            StudioSlider widthSlider = StudioSlider.ForNumber(panelWidth, MillimetresPerPixel, current =>
-                current == 0 && grid.CurrentCell != null ? AutomaticSize(s, true, grid.CurrentCell.RowIndex) : current);
-            Field("所选分段宽度 / mm（0 = 自动）", panelWidth, 29, widthSlider);
+            Field("所选分段宽度 / mm（0 = 自动）", panelWidth, 29, StudioSlider.ForNumber(panelWidth, SliderScale.Millimetres));
             syncWidth();
         }
     }
