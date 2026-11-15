@@ -272,10 +272,11 @@ namespace AirportSignStudio
         protected override void OnLostFocus(EventArgs e) { spaceHeld = false; StopPan(); base.OnLostFocus(e); }
     }
 
-    public sealed class AtlasForm : DpiForm
+    public sealed partial class AtlasForm : DpiForm
     {
         readonly SignEngine engine;
-        readonly AtlasWorkspace workspace;
+        AtlasWorkspace workspace { get { return book.Current; } }
+        readonly AtlasBook book;
         readonly AtlasHistory history;
         readonly AtlasPreview preview = new AtlasPreview();
         readonly SlotEditor editor = new SlotEditor();
@@ -302,7 +303,7 @@ namespace AirportSignStudio
 
         public AtlasForm(SignEngine renderer, AtlasWorkspace state)
         {
-            engine = renderer; workspace = state; preview.Workspace = workspace; history = new AtlasHistory(workspace);
+            engine = renderer; book = new AtlasBook(state); preview.Workspace = workspace; history = new AtlasHistory(book);
             ProjectTitle();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             BackColor = StudioTheme.Surface; ForeColor = StudioTheme.Ink;
@@ -313,6 +314,7 @@ namespace AirportSignStudio
             Panel brand = new Panel { Width = 312, Height = 40, Margin = new Padding(0) };
             brand.Controls.Add(new Label { Text = "拼图编辑器", AutoSize = true, Font = new Font(Font.FontFamily, 12, FontStyle.Bold), Location = new Point(0, 9) });
             header.Controls.Add(brand);
+            BuildPageControls(header);
             Panel primary = new Panel { Dock = DockStyle.Right, Width = 166 };
             exportPrimary.SetBounds(13, 4, 153, 36); primary.Controls.Add(exportPrimary);
             top.Controls.Add(header); top.Controls.Add(primary);
@@ -436,6 +438,7 @@ namespace AirportSignStudio
             file.DropDownItems.Add(Command("保存工程", () => SaveProject(false), "Ctrl+S"));
             file.DropDownItems.Add(Command("另存为…", () => SaveProject(true), "Ctrl+Shift+S"));
             file.DropDownItems.Add(new ToolStripSeparator()); file.DropDownItems.Add(png); file.DropDownItems.Add(pol); file.DropDownItems.Add(svg);
+            file.DropDownItems.Add(Command("导出全部拼图…", ExportAll));
             file.DropDownItems.Add(new ToolStripSeparator()); file.DropDownItems.Add(Command("退出", Close, "Alt+F4"));
             undo.Click += delegate { UndoRedo(false); }; redo.Click += delegate { UndoRedo(true); };
             edit.DropDownItems.Add(undo); edit.DropDownItems.Add(redo); edit.DropDownItems.Add(new ToolStripSeparator());
@@ -449,14 +452,17 @@ namespace AirportSignStudio
             view.DropDownItems.Add(Command("适合窗口", preview.FitView, "Ctrl+0"));
             view.DropDownItems.Add(Command("实际大小 · 100%", () => preview.SetZoom(1), "Ctrl+1"));
             view.DropDownOpening += delegate { layoutMenu.Checked = layoutOptions.Expanded; };
+            sign.DropDownItems.Add(Command("批量生成…", OpenBatch)); sign.DropDownItems.Add(new ToolStripSeparator());
             sign.DropDownItems.Add(Command("标牌配色…", OpenColors)); sign.DropDownItems.Add(Command("油漆 / 磨损…", OpenPaint));
+            ToolStripMenuItem pages = new ToolStripMenuItem("拼图");
+            pages.DropDownItems.Add(Command("新增拼图", AddAtlasPage)); pages.DropDownItems.Add(Command("删除当前拼图", RemoveAtlasPage));
             xplane.DropDownItems.Add(xplaneMode); xplane.DropDownItems.Add(xplaneSeparator); xplane.DropDownItems.Add(polSettings);
             xplaneMode.CheckedChanged += delegate
             {
                 if (workspace.XPlane == xplaneMode.Checked) return;
                 bool enabled = xplaneMode.Checked; CommitEdits(); workspace.XPlane = enabled; RefreshAtlas();
             };
-            menu.Items.AddRange(new ToolStripItem[] { file, edit, view, sign, xplane });
+            menu.Items.AddRange(new ToolStripItem[] { file, edit, view, sign, pages, xplane });
             foreach (ToolStripMenuItem root in menu.Items) { root.Padding = new Padding(10, 4, 10, 4); root.DropDown.Renderer = menu.Renderer; }
             slotMenu.Renderer = menu.Renderer;
             return menu;
@@ -504,7 +510,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(workspace.ProjectPath) ? "未命名工程" : Path.GetFileName(workspace.ProjectPath)) + " · Airport Sign Studio 3.22"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.23"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }
@@ -521,7 +527,8 @@ namespace AirportSignStudio
             preview.FinishDrag(false); CommitEdits(); history.Record(preview.Selection);
             if (!(forward ? history.Redo() : history.Undo())) return;
             int[] selection = history.Selection;
-            SyncWorkspace(); preview.Selection.Clear(); preview.Selection.UnionWith(selection); UpdateSelection();
+            if (preview.Workspace != workspace) { preview.Workspace = workspace; preview.FitView(); }
+            SyncPagePicker(); SyncWorkspace(); preview.Selection.Clear(); preview.Selection.UnionWith(selection); UpdateSelection();
             RefreshAtlas(); preview.Focus();
         }
         void ClearSign()
@@ -548,26 +555,29 @@ namespace AirportSignStudio
         void SaveProject(bool saveAs)
         {
             CommitEdits();
-            if (ProjectDialogs.Save(this, workspace, saveAs)) { ProjectTitle(); status.Text = "工程已保存：" + workspace.ProjectPath; }
+            if (SaveBook(saveAs)) { ProjectTitle(); status.Text = "工程已保存：" + book.ProjectPath; }
         }
         void OpenProject()
         {
             using (OpenFileDialog open = new OpenFileDialog { Filter = "机场标志工程|*.assproj", Title = "读取拼图工程" })
             {
                 if (open.ShowDialog(this) != DialogResult.OK) return;
-                AtlasWorkspace loaded;
-                try { loaded = ProjectStore.Decode(File.ReadAllText(open.FileName)); loaded.ProjectPath = open.FileName; }
+                AtlasBook loaded;
+                try { loaded = AtlasBook.Decode(File.ReadAllText(open.FileName)); loaded.ProjectPath = open.FileName; }
                 catch (Exception error) { MessageBox.Show(this, error.Message, "工程读取失败，当前工程未改变"); return; }
-                CommitEdits(); if (!ProjectDialogs.ConfirmSave(this, workspace)) return;
-                LoadWorkspace(loaded);
+                CommitEdits(); if (!ConfirmSaveBook()) return;
+                LoadBook(loaded);
                 status.Text = "已读取：" + open.FileName;
             }
         }
-        void LoadWorkspace(AtlasWorkspace loaded)
+        void LoadWorkspace(AtlasWorkspace loaded) { LoadBook(new AtlasBook(loaded)); }
+        void LoadBook(AtlasBook loaded)
         {
-            ProjectStore.Apply(workspace, loaded);
+            book.Restore(loaded.Pages, loaded.Active);
+            book.ProjectPath = loaded.ProjectPath; book.SavedProject = loaded.SavedProject;
             multiple.Checked = false; copied = null; paste.Enabled = false;
-            preview.FitView(); SyncWorkspace(); history.Reset(preview.Selection); RefreshAtlas(); ProjectTitle();
+            preview.Workspace = workspace;
+            preview.FitView(); SyncPagePicker(); SyncWorkspace(); history.Reset(preview.Selection); RefreshAtlas(); ProjectTitle();
         }
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
@@ -702,7 +712,8 @@ namespace AirportSignStudio
             CommitEdits();
             if (layout == null || !layout.CanExport) return;
             using (SaveFileDialog save = new SaveFileDialog { Filter = asSvg ? "SVG 矢量文件|*.svg" : "PNG 透明贴图|*.png", DefaultExt = asSvg ? "svg" : "png", AddExtension = true,
-                FileName = "Mixed_atlas_" + workspace.Columns + "x" + workspace.Rows + "_" + workspace.Width + "x" + workspace.Height + (asSvg ? ".svg" : ".png") })
+                FileName = (book.Pages.Count > 1 ? $"Atlas_{book.Active + 1:D2}_" : "Mixed_atlas_") +
+                    workspace.Columns + "x" + workspace.Rows + "_" + workspace.Width + "x" + workspace.Height + (asSvg ? ".svg" : ".png") })
             {
                 if (save.ShowDialog(this) != DialogResult.OK) return;
                 try
@@ -719,7 +730,7 @@ namespace AirportSignStudio
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             CommitEdits();
-            if (Owner == null && !ProjectDialogs.ConfirmSave(this, workspace)) e.Cancel = true;
+            if (Owner == null && !ConfirmSaveBook()) e.Cancel = true;
             base.OnFormClosing(e);
         }
         protected override void Dispose(bool disposing)

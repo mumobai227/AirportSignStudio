@@ -13,14 +13,16 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>3.22.0</Version>
+    <Version>3.23.0</Version>
     <StartupObject>AirportSignStudio.MainForm</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets/app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <Compile Include="src/*.cs" />
     <EmbeddedResource Include="assets/glyphs.xml" LogicalName="glyphs.xml" />
     <EmbeddedResource Include="assets/paint/reference.bin" LogicalName="paint.reference.bin" />
+    <EmbeddedResource Include="docs/licenses/PdfPig.txt" LogicalName="licenses.PdfPig.txt" />
   </ItemGroup>
 </Project>

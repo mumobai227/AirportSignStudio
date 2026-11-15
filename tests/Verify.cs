@@ -21,6 +21,55 @@ static partial class Verify
     {
         bool threw = false; try { action(); } catch (ArgumentException) { threw = true; } Assert(threw, message);
     }
+    static void VerifyAtlasBookAndBatch(SignEngine engine, string directory)
+    {
+        string[] imported = BatchSigns.FromReport("""
+            {"records":[{"stand":"101L","reviewed":true},{"stand":"102","confidence":0.81},
+            {"stand":"103","excluded":true},{"stand":""},{"stand":"106","reviewed":true}]}
+            """, out int review);
+        Assert(imported.SequenceEqual(new[] { "101L", "102", BatchSigns.MissingStand, "106" }) && review == 2, "sign_autogen excludes rejected rows and flags uncertain entries");
+        string[] confirmed = BatchSigns.FromReport("""
+            {"stand_label_candidates":[{"text":"91","position_source":"chart_label"},
+            {"text":"101","position_source":"official_stand_coordinate_table"}]}
+            """, out review);
+        Assert(confirmed.SequenceEqual(new[] { "101" }) && review == 0, "AutoCharts official positions take priority");
+        AtlasWorkspace first = new AtlasWorkspace { Width = 512, Height = 256, XPlane = true, PolPrefix = "Stand" };
+        first.Resize(2, 2);
+        first.Slots[0] = new Settings { Kind = AssetKind.GroundStand, Text = "099", Arrow = "↑" };
+        first.Selected = 2;
+        first.Merge(new[] { 2, 3 });
+        AtlasBook book = AtlasBook.Decode(ProjectStore.Encode(first));
+        AtlasHistory history = new AtlasHistory(book);
+        string before = book.Encode();
+        Settings template = new Settings { Kind = AssetKind.GroundStand, Arrow = "→", LeftMargin = 600, RightMargin = 700 };
+        Throws(() => BatchSigns.Add(book, engine, "101\n" + BatchSigns.MissingStand, template, true), "Unreviewed blank blocks batch");
+        Assert(book.Encode() == before, "Invalid batch changes no pages");
+        Assert(BatchSigns.Add(book, engine, "101L, 102\n１０２\n103\n104\n105", template, true) == 5, "Batch normalizes and deduplicates");
+        Assert(book.Pages.Count == 2 && book.Pages[0].Slots[0].Text == "099" &&
+            book.Pages[0].Slots[2].Text == "102" && book.Pages[0].Slots[3] == null, "Batch only fills visible empty slots");
+        Assert(book.Pages[1].Width == 512 && book.Pages[1].Slots[0].Text == "103" &&
+            book.Pages[1].Slots[0].LeftMargin == 600, "Overflow inherits dimensions and sign style");
+        history.Record(new[] { 0 });
+        string after = book.Encode();
+        Assert(history.Undo() && book.Pages.Count == 1 && book.Encode() == before &&
+            history.Redo() && book.Encode() == after, "Batch is one undoable change across atlases");
+        string path = Path.Combine(directory, "multi-atlas.assproj");
+        book.Save(path);
+        AtlasBook loaded = AtlasBook.Decode(File.ReadAllText(path));
+        Assert(loaded.Encode() == after, "Multi-atlas file retains individual layouts and settings");
+        loaded.Pages[1].XPlane = false;
+        string folder = Path.Combine(directory, "multi-atlas-output-" + Guid.NewGuid().ToString("N"));
+        loaded.ExportAll(engine, folder);
+        Assert(Directory.GetFiles(folder).Length == 4 && File.Exists(Path.Combine(folder, "01_Stand.pol")) &&
+            File.Exists(Path.Combine(folder, "02_Atlas_atlas.png")), "Combined export respects each atlas mode");
+        string[] csv = File.ReadAllLines(Path.Combine(folder, "AtlasIndex.csv"));
+        Assert(csv.Length == 7 && csv.Any(line => line.Contains("\"101L\"")), "Index maps each exported sign to a page and UV");
+        loaded.Pages[1].Slots[1].Text = "";
+        string failed = folder + "-failed";
+        Throws(() => loaded.ExportAll(engine, failed), "Invalid page fails batch export");
+        Assert(!Directory.Exists(failed), "Failed batch exposes no partial output");
+    }
+
     static void VerifySliderPrecision()
     {
         const decimal start = 2400;
@@ -925,6 +974,7 @@ static partial class Verify
                 VerifyAspectRatio(engine);
                 VerifyMarginsAndWholeDividers(engine);
                 VerifySliderPrecision();
+                VerifyAtlasBookAndBatch(engine, directory);
                 VerifyAtlas(engine, directory);
                 VerifyMergedAtlas(engine, directory);
                 VerifyProjectAndPol(engine, directory);

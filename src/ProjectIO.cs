@@ -44,13 +44,17 @@ namespace AirportSignStudio
     public static class ProjectStore
     {
         static readonly XmlSerializer Serializer = new XmlSerializer(typeof(AirportProject));
-        public static string Encode(AtlasWorkspace w)
+        internal static AirportProject ToData(AtlasWorkspace w)
         {
-            AirportProject data = new AirportProject { Rows = w.Rows, Columns = w.Columns, Width = w.Width, Height = w.Height, Gap = w.Gap,
+            return new AirportProject { Rows = w.Rows, Columns = w.Columns, Width = w.Width, Height = w.Height, Gap = w.Gap,
                 Padding = w.Padding, TargetTextPixels = w.TargetTextPixels, Slots = w.Slots, Regions = w.Regions.Select(RegionData.From).ToArray(),
                 PolNames = w.PolNames, PolPrefix = w.PolPrefix, PolLayer = w.PolLayer, PolOffset = w.PolOffset, PolBleed = w.PolBleed, XPlane = w.XPlane, PolBoundary = w.PolBoundary, Colors = w.Colors, TypeColors = w.TypeColors, BaseColors = w.BaseColors, Paint = w.Paint };
+        }
+        public static string Encode(AtlasWorkspace w) { return EncodeXml(Serializer, ToData(w)); }
+        internal static string EncodeXml(XmlSerializer serializer, object data)
+        {
             StringBuilder text = new StringBuilder();
-            using (XmlWriter writer = XmlWriter.Create(text, new XmlWriterSettings { OmitXmlDeclaration = true, Indent = true })) Serializer.Serialize(writer, data);
+            using (XmlWriter writer = XmlWriter.Create(text, new XmlWriterSettings { OmitXmlDeclaration = true, Indent = true })) serializer.Serialize(writer, data);
             return text.ToString();
         }
         static void Require(bool condition) { if (!condition) throw new ArgumentException("工程格式损坏或参数超出支持范围，当前工程未改变。"); }
@@ -84,6 +88,13 @@ namespace AirportSignStudio
             AirportProject p;
             using (XmlReader reader = XmlReader.Create(new StringReader(text), new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 4000000 }))
                 p = (AirportProject)Serializer.Deserialize(reader);
+            AtlasWorkspace w = FromData(p);
+            w.SavedProject = Encode(w);
+            return w;
+        }
+        internal static AtlasWorkspace FromData(AirportProject p)
+        {
+            Require(p != null);
             if (p.Version != 1) throw new ArgumentException("此工程版本暂不支持，请使用兼容的程序版本。");
             Require(p.Rows >= 1 && p.Rows <= 8 && p.Columns >= 1 && p.Columns <= 8 && p.Width >= 128 && p.Width <= 8192 && p.Height >= 128 && p.Height <= 8192);
             Require(p.Gap >= 0 && p.Gap <= 512 && p.Padding >= 0 && p.Padding <= 256 && p.TargetTextPixels >= 16 && p.TargetTextPixels <= 1024);
@@ -118,7 +129,7 @@ namespace AirportSignStudio
             w.Resize(p.Rows, p.Columns);
             for (int i = 0; i < 64; i++) { w.Slots[i] = p.Slots[i]; w.Regions[i] = p.Regions[i] == null ? null : p.Regions[i].ToRegion(); w.PolNames[i] = p.PolNames[i]; }
             w.Selected = Array.FindIndex(w.Regions, r => r != null);
-            w.SavedProject = Encode(w); return w;
+            return w;
         }
         public static void AtomicFile(string path, Action<string> write)
         {
