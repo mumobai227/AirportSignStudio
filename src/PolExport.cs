@@ -100,8 +100,8 @@ namespace AirportSignStudio
             FlowLayoutPanel options = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 154, Padding = new Padding(12) };
             TextBox prefix = new TextBox { Text = w.PolPrefix, Width = 170, MaxLength = 60, AccessibleName = "总 POL 名称" };
             ComboBox layer = new StudioComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 130, AccessibleName = "POL layer" }; layer.Items.AddRange(PolExporter.Layers); layer.SelectedItem = w.PolLayer;
-            NumericUpDown offset = new NumericUpDown { Minimum = -5, Maximum = 5, Value = w.PolOffset, Width = 60, AccessibleName = "POL 图层偏移" };
-            NumericUpDown bleed = new NumericUpDown { Minimum = 0, Maximum = 32, Value = w.PolBleed, Width = 60, AccessibleName = "POL 出血 px" };
+            NumericUpDown offset = new NumericUpDown { Minimum = -5, Maximum = 5, Value = w.PolOffset, Width = 122, AccessibleName = "POL 图层偏移" };
+            NumericUpDown bleed = new NumericUpDown { Minimum = 0, Maximum = 32, Value = w.PolBleed, Width = 122, AccessibleName = "POL 出血 px" };
             options.Controls.Add(new Label { Text = "总 POL 名称", AutoSize = true, Margin = new Padding(3, 10, 3, 0) }); options.Controls.Add(StudioTheme.FrameInput(prefix, 34));
             options.Controls.Add(new Label { Text = "layer", AutoSize = true, Margin = new Padding(8, 10, 3, 0) }); options.Controls.Add(StudioTheme.FrameInput(layer, 34));
             options.Controls.Add(new Label { Text = "偏移", AutoSize = true, Margin = new Padding(8, 10, 3, 0) }); StudioField offsetField = StudioTheme.FrameInput(offset, 34); options.Controls.Add(offsetField);

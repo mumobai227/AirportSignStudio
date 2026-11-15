@@ -21,6 +21,18 @@ static partial class Verify
     {
         bool threw = false; try { action(); } catch (ArgumentException) { threw = true; } Assert(threw, message);
     }
+    static void VerifySliderPrecision()
+    {
+        const decimal start = 2400;
+        const System.Windows.Forms.Keys ctrl = System.Windows.Forms.Keys.Control, shift = System.Windows.Forms.Keys.Shift;
+        Assert(StudioSlider.FineDrag(start, 1, 1, ctrl, 0, 200000) == 2400.1m, "Ctrl allows a tenth on a wide dimension");
+        Assert(StudioSlider.FineDrag(start, -1, 1, ctrl | shift, 0, 200000) == 2399.99m, "Shift takes priority and allows a hundredth");
+        decimal accumulated = 0;
+        for (int i = 0; i < 10; i++) accumulated = StudioSlider.FineDrag(accumulated, 1, 1, ctrl, 0, 8);
+        Assert(StudioSlider.Quantize(accumulated, 0, 8, 0) == 1, "Fractional drag deltas accumulate for integer fields");
+        Assert(StudioSlider.FineDrag(8, 30, 1, ctrl, 0, 8) == 8, "Fine drag stays within the field's limits");
+    }
+
     static void VerifyMarginsAndWholeDividers(SignEngine engine)
     {
         Settings board = new Settings { Kind = AssetKind.StandSign, CharacterHeight = 600, Text = "A", LeftMargin = 80, RightMargin = 180 };
@@ -912,6 +924,7 @@ static partial class Verify
                 VerifyV2(engine, library, directory);
                 VerifyAspectRatio(engine);
                 VerifyMarginsAndWholeDividers(engine);
+                VerifySliderPrecision();
                 VerifyAtlas(engine, directory);
                 VerifyMergedAtlas(engine, directory);
                 VerifyProjectAndPol(engine, directory);

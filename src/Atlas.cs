@@ -344,15 +344,15 @@ namespace AirportSignStudio
             layoutOptions.Dock = DockStyle.Top;
             FlowLayoutPanel grid = Row(0), texture = Row(44), quality = Row(88), regions = Row(0);
             regions.Dock = DockStyle.Top; regions.Height = 47;
-            Number(grid, "列", columns, 1, 8, workspace.Columns, 55);
-            Number(grid, "行", rows, 1, 8, workspace.Rows, 55);
-            Number(grid, "间距 px", gap, 0, 512, workspace.Gap, 64);
-            Number(grid, "留白 px", padding, 0, 256, workspace.Padding, 64);
+            Number(grid, "列", columns, 1, 8, workspace.Columns, 104);
+            Number(grid, "行", rows, 1, 8, workspace.Rows, 104);
+            Number(grid, "间距 px", gap, 0, 512, workspace.Gap, 120);
+            Number(grid, "留白 px", padding, 0, 256, workspace.Padding, 120);
             texture.Controls.Add(new Label { Text = "分辨率", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
             preset.DropDownStyle = ComboBoxStyle.DropDownList; preset.Width = 202; preset.AccessibleName = "拼图分辨率预设";
             preset.Items.AddRange(new object[] { "1K · 1024 × 1024", "2K · 2048 × 2048", "4K · 4096 × 4096", "8K · 8192 × 8192", "横向 · 2048 × 1024", "横向 · 4096 × 2048", "自定义" }); texture.Controls.Add(StudioTheme.FrameInput(preset, 34));
-            Number(texture, "宽", width, 128, 8192, workspace.Width, 84); Number(texture, "高", height, 128, 8192, workspace.Height, 84);
-            Number(quality, "参考最小字高 px", target, 16, 1024, workspace.TargetTextPixels, 72);
+            Number(texture, "宽", width, 128, 8192, workspace.Width, 134); Number(texture, "高", height, 128, 8192, workspace.Height, 134);
+            Number(quality, "参考最小字高 px", target, 16, 1024, workspace.TargetTextPixels, 134);
             recommend.Text = "采用建议分辨率"; recommend.Width = 153; recommend.Height = 34; recommend.Margin = new Padding(12, 3, 12, 0); quality.Controls.Add(recommend);
             density.AutoSize = true; density.Margin = new Padding(0, 6, 0, 0); quality.Controls.Add(density);
             multiple.Text = "多选"; multiple.Width = 68; multiple.Height = 30; regions.Controls.Add(multiple);
@@ -504,7 +504,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(workspace.ProjectPath) ? "未命名工程" : Path.GetFileName(workspace.ProjectPath)) + " · Airport Sign Studio 3.21"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(workspace.ProjectPath) ? "未命名工程" : Path.GetFileName(workspace.ProjectPath)) + " · Airport Sign Studio 3.22"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }
@@ -592,11 +592,14 @@ namespace AirportSignStudio
         {
             return new FlowLayoutPanel { Location = new Point(0, y), Width = 1200, Height = 40, WrapContents = false };
         }
-        static void Number(FlowLayoutPanel panel, string label, NumericUpDown input, int min, int max, int value, int size)
+        void Number(FlowLayoutPanel panel, string label, NumericUpDown input, int min, int max, int value, int size)
         {
             panel.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(panel.Controls.Count == 0 ? 0 : 10, 6, 7, 0) });
             input.Minimum = min; input.Maximum = max; input.Value = value; input.Width = size; input.AccessibleName = "拼图：" + label;
-            panel.Controls.Add(StudioTheme.FrameInput(input, 34));
+            input.Increment = Math.Max(1, (max - min) / 100);
+            StudioField field = StudioTheme.FrameInput(input, 34);
+            field.GroupDrag(BeginEdit, EndEdit);
+            panel.Controls.Add(field);
         }
 
         void Select(int index)

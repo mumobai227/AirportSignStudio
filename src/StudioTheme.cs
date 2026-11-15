@@ -100,20 +100,50 @@ namespace AirportSignStudio
     {
         readonly Control input;
         readonly StudioMotion focus;
-        public StudioField(Control control)
+        readonly StudioSlider slider;
+        internal void GroupDrag(Action started, Action ended)
+        {
+            if (slider == null) return;
+            slider.DragStarted += started;
+            slider.DragEnded += ended;
+        }
+        public StudioField(Control control) : this(control, null) { }
+
+        internal StudioField(Control control, StudioSlider customSlider)
         {
             input = control; SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             BackColor = StudioTheme.Field; TabStop = false; Controls.Add(input);
             focus = new StudioMotion(this, value => Invalidate());
             input.Enter += delegate { focus.To(1); }; input.Leave += delegate { focus.To(0); };
             Click += delegate { input.Focus(); };
+            slider = customSlider;
+            if (control is NumericUpDown number && slider == null)
+            {
+                decimal current = number.Value;
+                slider = new StudioSlider(() => current, value => number.Value = value,
+                    number.Minimum, number.Maximum, number.Increment, number.DecimalPlaces);
+                number.ValueChanged += delegate { current = number.Value; slider.Invalidate(); };
+            }
+            if (slider != null)
+            {
+                Controls.Add(slider);
+                input.TextChanged += delegate { slider.Invalidate(); };
+                input.EnabledChanged += delegate { slider.Enabled = input.Enabled; };
+                slider.Enabled = input.Enabled;
+            }
         }
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e); if (input == null) return;
             int padding = (int)(9 * StudioTheme.Scale(this));
             int height = input.PreferredSize.Height;
-            input.SetBounds(padding, Math.Max(1, (Height - height) / 2), Math.Max(1, Width - padding * 2), height);
+            int sliderWidth = slider == null ? 0 : Math.Max(0, (int)(Width * (input is ComboBox ? 0.43 : 0.47)) - padding);
+            input.SetBounds(padding + sliderWidth, Math.Max(1, (Height - height) / 2), Math.Max(1, Width - padding * 2 - sliderWidth), height);
+            if (slider != null)
+            {
+                slider.AccessibleName = (input.AccessibleName ?? "数值") + "滑块";
+                slider.SetBounds(padding, 1, Math.Max(1, sliderWidth - 2), Math.Max(1, Height - 2));
+            }
             if (input is ComboBox && input.Width > 2 && input.Height > 2)
             {
                 Region previous = input.Region;

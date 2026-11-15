@@ -85,8 +85,8 @@ namespace AirportSignStudio
             {
                 int index = i, y = 150 + i * 31 + (i >= 3 ? 10 : 0);
                 LabelAt(names[i] + ":", 334, y + 3, 28, 25);
-                channels[i] = new NumericUpDown { Bounds = new Rectangle(366, y, 80, 28), Maximum = i == 0 ? 359 : i < 3 ? 100 : 255, AccessibleName = accessible[i] };
-                Controls.Add(StudioTheme.FrameInput(channels[i], 28)); if (i < 3) LabelAt(i == 0 ? "°" : "%", 452, y + 3, 40, 25);
+                channels[i] = new NumericUpDown { Bounds = new Rectangle(366, y, 164, 28), Maximum = i == 0 ? 359 : i < 3 ? 100 : 255, AccessibleName = accessible[i] };
+                Controls.Add(StudioTheme.FrameInput(channels[i], 28)); if (i < 3) LabelAt(i == 0 ? "°" : "%", 536, y + 3, 26, 25);
                 channels[i].ValueChanged += delegate
                 {
                     if (updating) return;

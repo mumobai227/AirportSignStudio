@@ -305,7 +305,7 @@ namespace AirportSignStudio
             return requested;
         }
 
-        static double ReadAspectRatio(string input)
+        internal static double ReadAspectRatio(string input)
         {
             if (string.IsNullOrWhiteSpace(input)) return 0;
             string[] parts = input.Normalize(NormalizationForm.FormKC).Split(':');
