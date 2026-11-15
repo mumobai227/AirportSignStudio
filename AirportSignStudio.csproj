@@ -13,16 +13,20 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>3.24.0</Version>
+    <Version>3.25.0</Version>
     <StartupObject>AirportSignStudio.MainForm</StartupObject>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets/app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <Compile Include="src/*.cs" />
     <EmbeddedResource Include="assets/glyphs.xml" LogicalName="glyphs.xml" />
     <EmbeddedResource Include="assets/paint/reference.bin" LogicalName="paint.reference.bin" />
     <EmbeddedResource Include="docs/licenses/PdfPig.txt" LogicalName="licenses.PdfPig.txt" />
+    <EmbeddedResource Include="assets/ocr/ch_PP-OCRv4_rec_mobile.onnx" LogicalName="ocr.stand.onnx" />
+    <EmbeddedResource Include="docs/licenses/OCR-*.txt" />
   </ItemGroup>
+  <Import Project="tools/OcrRuntime.targets" />
 </Project>

@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace AirportSignStudio
@@ -138,7 +139,7 @@ namespace AirportSignStudio
             Settings selected = page.Slots[page.Selected];
             bool canUseTemplate = selected != null && (selected.Kind != AssetKind.GroundOther || selected.OtherStyle != "NO ENTRY");
             FlowLayoutPanel top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 82, FlowDirection = FlowDirection.LeftToRight };
-            Button import = new StudioButton { Text = "导入航图 / 清单…", Width = 156, Height = 34 };
+            Button import = new StudioButton { Text = "导入航图或截图…", Width = 156, Height = 34 };
             ComboBox mode = new StudioComboBox { Width = 208, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "批量标牌样式" };
             mode.Items.Add("地面机位编号");
             if (canUseTemplate) mode.Items.Add(selected.Kind == AssetKind.TaxiSign ? "套用选中标牌 · 替换首段" : "套用选中标牌样式");
@@ -161,49 +162,45 @@ namespace AirportSignStudio
             Controls.Add(list); Controls.Add(message); Controls.Add(actions); Controls.Add(top);
 
             string sourceNote = "";
+            bool importing = false;
             Action count = delegate
             {
                 int entries = BatchSigns.ParseList(list.Text).Length;
-                generate.Enabled = entries > 0;
+                generate.Enabled = entries > 0 && !importing;
                 message.Text = $"{entries} 项" + (sourceNote.Length == 0 ? "" : Environment.NewLine + sourceNote);
             };
             list.TextChanged += delegate { count(); };
-            import.Click += delegate
+            import.Click += async delegate
             {
                 using OpenFileDialog file = new OpenFileDialog
                 {
-                    Filter = "航图与清单|*.pdf;*.json;*.txt;*.csv|航图 PDF|*.pdf|识别结果 JSON|*.json|编号清单|*.txt;*.csv",
+                    Filter = "航图、截图及清单|*.pdf;*.png;*.jpg;*.jpeg;*.json;*.txt;*.csv|机位坐标表截图|*.png;*.jpg;*.jpeg|航图 PDF|*.pdf|识别结果 JSON|*.json|编号清单|*.txt;*.csv",
                     Multiselect = true, Title = "导入航图或识别编号"
                 };
                 if (file.ShowDialog(this) != DialogResult.OK) return;
+                string previousNote = sourceNote;
+                string[] paths = file.FileNames;
                 try
                 {
-                    UseWaitCursor = true;
-                    var imported = new System.Collections.Generic.List<string>();
-                    int review = 0;
-                    string[] pdf = file.FileNames.Where(path => Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)).ToArray();
-                    bool table = true;
-                    if (pdf.Length > 0) imported.AddRange(BatchSigns.FromPdfs(pdf, out table));
-                    foreach (string path in file.FileNames.Except(pdf))
-                    {
-                        string text = File.ReadAllText(path);
-                        if (Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase))
-                        {
-                            imported.AddRange(BatchSigns.FromReport(text, out int needsReview));
-                            review += needsReview;
-                        }
-                        else imported.AddRange(BatchSigns.ParseList(text));
-                    }
-                    sourceNote = review > 0 ? $"{review} 条识别记录待核对。请补全“{BatchSigns.MissingStand}”或删除该行。" :
-                        !table ? "已跳过普通平面图，请导入 0P 机位坐标表或带机位依据的识别 JSON。" :
-                        "请对照来源检查编号清单。";
-                    string newText = string.Join(Environment.NewLine, imported.Where(line => line.Length > 0));
+                    importing = true; import.Enabled = false;
+                    sourceNote = "正在读取机位编号…"; count();
+                    var result = await Task.Run(() => BatchSigns.ImportFiles(paths));
+                    if (IsDisposed || Disposing) return;
+                    string newText = string.Join(Environment.NewLine, result.Rows.Where(line => line.Length > 0));
                     if (newText.Length == 0) throw new ArgumentException("没有可确认的机位编号。请导入 0P 机位坐标表、机位识别 JSON，或粘贴已核对的编号。");
+                    sourceNote = result.Note;
                     list.AppendText((list.TextLength == 0 ? "" : Environment.NewLine) + newText);
-                    count();
                 }
-                catch (Exception error) { MessageBox.Show(this, error.Message, "读取失败"); }
-                finally { UseWaitCursor = false; }
+                catch (Exception error)
+                {
+                    sourceNote = previousNote;
+                    if (!IsDisposed && !Disposing) MessageBox.Show(this, error.Message, "读取失败");
+                }
+                finally
+                {
+                    importing = false;
+                    if (!IsDisposed && !Disposing) { import.Enabled = true; count(); }
+                }
             };
             generate.Click += delegate
             {

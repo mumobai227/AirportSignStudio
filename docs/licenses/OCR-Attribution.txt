@@ -1,0 +1,13 @@
+PaddleOCR PP-OCRv4 Simplified Chinese mobile text recognition model.
+Original model weights copyright Baidu and the applicable PaddleOCR rights holders.
+ONNX conversion and packaging by the RapidOCR authors. Model is distributed under Apache License, Version 2.0.
+The model is redistributed unchanged and contains its character dictionary.
+RapidOCR v3.10.0: ch_PP-OCRv4_rec_mobile.onnx
+Model SHA-256: 48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b
+Model registry: https://github.com/RapidAI/RapidOCR/blob/main/python/rapidocr/default_models.yaml
+Model attribution and license: https://rapidai.github.io/RapidOCRDocs/main/en/model_licenses/
+Upstream project: https://github.com/PaddlePaddle/PaddleOCR
+
+ONNX Runtime 1.24.4. Copyright Microsoft Corporation. Distributed under the MIT License.
+Its license and third-party notices are included alongside this notice.
+App-local Visual C++ redistributable DLLs are supplied by Microsoft Visual Studio or Build Tools.

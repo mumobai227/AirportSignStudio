@@ -12,6 +12,7 @@
 *.png binary
 *.ico binary
 *.bin binary
+*.onnx binary
 *.exe binary
 *.zip binary
 assets/glyphs.xml -text

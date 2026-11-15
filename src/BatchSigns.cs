@@ -78,7 +78,7 @@ namespace AirportSignStudio
                     }
                 }
                 if (isTable && ids.Count == 0)
-                    throw new ArgumentException(Path.GetFileName(path) + " 中没有读出机位坐标行。扫描表可先用 sign_autogen 识别，再导入 JSON。");
+                    throw new ArgumentException(Path.GetFileName(path) + " 中没有读出机位坐标行。请将扫描页截为带标题和表头的图片，再导入识别。");
                 confirmed.AddRange(ids);
             }
             table = confirmed.Count > 0;
@@ -139,6 +139,40 @@ namespace AirportSignStudio
             return row.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.True;
         }
 
+        public static (string[] Rows, string Note) ImportFiles(string[] files)
+        {
+            List<string> imported = new List<string>();
+            int review = 0;
+            string[] pdf = files.Where(path => Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase)).ToArray();
+            bool table = true;
+            if (pdf.Length > 0) imported.AddRange(FromPdfs(pdf, out table));
+            foreach (string path in files.Except(pdf))
+            {
+                if (StandChartOcr.IsImage(path))
+                {
+                    try
+                    {
+                        imported.AddRange(StandChartOcr.Read(path, out int needsReview));
+                        review += needsReview;
+                    }
+                    catch (ArgumentException error) { throw new ArgumentException(Path.GetFileName(path) + "：" + error.Message, error); }
+                }
+                else
+                {
+                    string text = File.ReadAllText(path);
+                    if (Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        imported.AddRange(FromReport(text, out int needsReview));
+                        review += needsReview;
+                    }
+                    else imported.AddRange(ParseList(text));
+                }
+            }
+            string note = review > 0 ? $"{review} 条记录待核对。请修正或删除带方括号的行。" :
+                !table ? "已跳过普通平面图，机位编号需有坐标表依据。" : "请对照原图检查编号清单。";
+            return (imported.ToArray(), note);
+        }
+
         static bool Fits(AtlasWorkspace page, int slot, SizeF needed)
         {
             try
@@ -179,7 +213,8 @@ namespace AirportSignStudio
             {
                 string value = values[i];
                 Settings sign = template.Copy();
-                if (value == MissingStand || (sign.Kind == AssetKind.GroundStand || sign.Kind == AssetKind.StandSign) && !Stand.IsMatch(value))
+                if (value == MissingStand || value.StartsWith(StandChartOcr.ReviewPrefix, StringComparison.Ordinal) ||
+                    (sign.Kind == AssetKind.GroundStand || sign.Kind == AssetKind.StandSign) && !Stand.IsMatch(value))
                     throw new ArgumentException("请核对机位编号：" + value);
                 if (sign.Kind == AssetKind.TaxiSign && sign.Panels.Count > 0) sign.Panels[0].Text = value;
                 else sign.Text = value;

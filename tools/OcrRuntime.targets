@@ -1,0 +1,11 @@
+<Project>
+  <!-- ONNX Runtime ships import libraries for native consumers. The app only uses the DLLs. -->
+  <Target Name="PrepareOcrNativePublish" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.lib'" />
+      <OcrRedist Include="$(OcrRedistPath)\vcruntime140.dll;$(OcrRedistPath)\vcruntime140_1.dll;$(OcrRedistPath)\msvcp140.dll;$(OcrRedistPath)\msvcp140_1.dll"
+                 Condition="'$(OcrRedistPath)' != ''" />
+      <ResolvedFileToPublish Include="@(OcrRedist)" RelativePath="%(OcrRedist.Filename)%(OcrRedist.Extension)" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

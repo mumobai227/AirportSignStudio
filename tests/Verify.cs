@@ -90,6 +90,45 @@ static partial class Verify
                     "Automatically split pages meet the requested density when possible");
     }
 
+    static void VerifyStandOcr(SignEngine engine, string directory)
+    {
+        string DrawChart(string file, string title)
+        {
+            string path = Path.Combine(directory, file);
+            using Bitmap bitmap = new Bitmap(700, 270, PixelFormat.Format24bppRgb);
+            using Graphics g = Graphics.FromImage(bitmap);
+            using Font label = new Font("Arial", 17, FontStyle.Regular, GraphicsUnit.Pixel);
+            using Font heading = new Font("Arial", 26, FontStyle.Regular, GraphicsUnit.Pixel);
+            g.Clear(Color.White);
+            foreach (int y in new[] { 55, 90, 125, 160, 195, 230 }) g.DrawLine(Pens.Black, 14, y, 685, y);
+            foreach (int x in new[] { 14, 146, 685 }) g.DrawLine(Pens.Black, x, 55, x, 230);
+            g.DrawString(title, heading, Brushes.Black, 16, 9);
+            g.DrawString("TWY G2", label, Brushes.Black, 550, 241);
+            g.DrawString("ID", label, Brushes.Black, 38, 63);
+            g.DrawString("Coordinates", label, Brushes.Black, 175, 63);
+            g.DrawString("001", label, Brushes.Black, 38, 98);
+            g.DrawString("N40 28 58.9 E111 34 19.7", label, Brushes.Black, 175, 98);
+            g.DrawString("A1", label, Brushes.Black, 38, 133);
+            g.DrawString("N40 28 59.0 E111 34 20.2", label, Brushes.Black, 175, 133);
+            g.DrawString("G2", label, Brushes.Black, 38, 168); // No paired coordinate.
+            g.DrawString("N40 28 59.0 E111 34 20.3", label, Brushes.Black, 175, 203);
+            bitmap.Save(path, ImageFormat.Png);
+            return path;
+        }
+
+        string stands = DrawChart("ocr-stand-check.png", "Aircraft Stand Coordinates");
+        string[] ids = StandChartOcr.Read(stands, out int review);
+        Assert(ids.SequenceEqual(new[] { "001", "A1", BatchSigns.MissingStand }) && review == 1,
+            "Image OCR keeps leading zeros and legitimate alphanumeric stands, filters unpaired taxiway IDs, and retains missing stand rows");
+        Assert(BatchSigns.ImportFiles(new[] { stands }).Rows.SequenceEqual(ids), "Image files use the batch importer");
+        string taxiways = DrawChart("ocr-taxiway-check.png", "Taxiway Coordinates");
+        Throws(() => StandChartOcr.Read(taxiways, out _), "Taxiway coordinate table cannot become a stand list");
+        AtlasBook book = new AtlasBook(new AtlasWorkspace());
+        Settings template = new Settings { Kind = AssetKind.GroundStand, Arrow = "↑" };
+        Throws(() => BatchSigns.Add(book, engine, "001\n" + StandChartOcr.ReviewPrefix + "102]", template, true),
+            "OCR review rows cannot be batch generated before correction");
+    }
+
     static void VerifySliderPrecision()
     {
         const decimal start = 2400;
@@ -1001,6 +1040,7 @@ static partial class Verify
                 VerifyMarginsAndWholeDividers(engine);
                 VerifySliderPrecision();
                 VerifyAtlasBookAndBatch(engine, directory);
+                VerifyStandOcr(engine, directory);
                 VerifyAtlas(engine, directory);
                 VerifyMergedAtlas(engine, directory);
                 VerifyProjectAndPol(engine, directory);

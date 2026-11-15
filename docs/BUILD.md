@@ -7,6 +7,7 @@
 - `tools/bootstrap_dotnet.ps1` 校验 SDK ZIP 的 SHA512 并解压到 `.tools/`，不全局安装 SDK。
 - 正常构建使用已提交的字形和材质，不需要原始 PDF、PSD、Python 或 psd-tools。
 - PDF 文字提取使用 [PdfPig 0.1.16](https://www.nuget.org/packages/PdfPig/0.1.16)。许可见 [PdfPig.txt](licenses/PdfPig.txt)，随单文件 EXE 和 Windows 压缩包提供。
+- OCR 使用内置 PP-OCRv4 识别模型和 ONNX Runtime CPU。模型来源、校验值和许可见 [OCR-Attribution.txt](licenses/OCR-Attribution.txt)。构建单文件版需能找到 Visual Studio 或 Build Tools 的 x64 Visual C++ 可再分发文件。脚本会自动查找，也可用 `./build.ps1 -OcrRedistPath '<x64 CRT 目录>'` 指定。发布 EXE 内含所需运行库和模型。
 
 ## 命令
 
@@ -18,7 +19,7 @@
 ./build.ps1 -Test
 ```
 
-输出：`release_v3_24/AirportSignStudio.exe`。检查结果和样张：`validation_v3_24/`。成品为自包含的单个 EXE；程序运行时由 .NET 管理临时解包缓存，不需要随 EXE 携带 config、SDK 或素材文件。
+输出：`release_v3_25/AirportSignStudio.exe`。检查结果和样张：`validation_v3_25/`。成品为自包含的单个 EXE；程序运行时由 .NET 管理临时解包缓存，不需要随 EXE 携带 config、SDK 或素材文件。
 
 只有显式执行 `./build.ps1 -UiTest` 才会进行窗口检查。`tools/verify_portable.ps1` 也会启动程序窗口；它们不属于默认检查，本次发布均未运行。界面测试不能替代另一台电脑、真实跨屏或模拟器验收。
 

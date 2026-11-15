@@ -5,6 +5,16 @@ static class ModernTestRunner
 {
     [STAThread] static int Main(string[] args)
     {
+        if (args[0] == "--chart-ocr-check")
+        {
+            foreach (string path in args.Skip(1))
+            {
+                string[] rows = AirportSignStudio.StandChartOcr.Read(path, out int review);
+                Console.WriteLine($"{System.IO.Path.GetFileName(path)}: {rows.Length} rows, {review} to review");
+                foreach (string row in rows) Console.WriteLine(row);
+            }
+            return 0;
+        }
         if (args[0] == "--chart-check")
         {
             string[] ids = AirportSignStudio.BatchSigns.FromPdfs(args.Skip(1), out bool table);
