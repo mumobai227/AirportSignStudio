@@ -50,9 +50,9 @@ static partial class Verify
         AtlasHistory history = new AtlasHistory(book);
         string before = book.Encode();
         Settings template = new Settings { Kind = AssetKind.GroundStand, Arrow = "→", LeftMargin = 600, RightMargin = 700 };
-        Throws(() => BatchSigns.Add(book, engine, "101\n" + BatchSigns.MissingStand, template, true), "Unreviewed blank blocks batch");
+        Throws(() => BatchSigns.Add(book, engine, "101\n" + BatchSigns.MissingStand, template, book.Active), "Unreviewed blank blocks batch");
         Assert(book.Encode() == before, "Invalid batch changes no pages");
-        Assert(BatchSigns.Add(book, engine, "101L, 102\n１０２\n103\n104\n105", template, true) == 5, "Batch normalizes and deduplicates");
+        Assert(BatchSigns.Add(book, engine, "101L, 102\n１０２\n103\n104\n105", template, book.Active) == 5, "Batch normalizes and deduplicates");
         Assert(book.Pages.Count == 2 && book.Pages[0].Slots[0].Text == "099" &&
             book.Pages[0].Slots[2].Text == "102" && book.Pages[0].Slots[3] == null, "Batch only fills visible empty slots");
         Assert(book.Pages[1].Width == 512 && book.Pages[1].Slots[0].Text == "103" &&
@@ -81,7 +81,7 @@ static partial class Verify
         smallSlots.Resize(8, 8);
         AtlasBook large = new AtlasBook(smallSlots);
         string[] ids = Enumerable.Range(100, 40).Select(i => i.ToString()).ToArray();
-        Assert(BatchSigns.Add(large, engine, string.Join("\n", ids), template, true) == ids.Length && large.Pages.Count > 2,
+        Assert(BatchSigns.Add(large, engine, string.Join("\n", ids), template, large.Active) == ids.Length && large.Pages.Count > 2,
             "A large batch creates additional density-aware pages");
         Assert(smallSlots.Filled == 0 && large.Pages.Skip(1).All(p => p.Count < smallSlots.Count),
             "Density-aware packing bypasses undersized existing slots and picks a smaller grid");
@@ -91,6 +91,51 @@ static partial class Verify
             using (AtlasLayout atlas = AtlasLayout.Build(engine, page))
                 Assert(atlas.Slots.Where(slot => slot.Occupied).All(slot => slot.SmallestTextPixels >= page.TargetTextPixels - 0.05f),
                     "Automatically split pages meet the requested density when possible");
+
+        AtlasWorkspace untouched = new AtlasWorkspace();
+        AtlasWorkspace occupied = new AtlasWorkspace { Width = 512, Height = 256, TargetTextPixels = 32 };
+        occupied.Resize(1, 2);
+        occupied.Slots[0] = template.Copy();
+        occupied.Slots[0].Text = "090";
+        AtlasBook targeted = new AtlasBook(untouched);
+        targeted.Pages.Add(occupied);
+        targeted.Pages.Add(AtlasBook.BlankLike(occupied));
+        AtlasHistory targetedHistory = new AtlasHistory(targeted);
+        string original = targeted.Encode();
+        Size texture = new Size(1000, 576), fixedGrid = new Size(2, 2);
+        BatchSigns.Add(targeted, engine, "201,202,203,204,205,206", template, 1, BatchSplit.Fixed, texture, fixedGrid);
+        Assert(targeted.Active == 1 && untouched.Filled == 0 && occupied.Slots[1]?.Text == "201" &&
+            occupied.Width == 512 && occupied.Height == 256 && occupied.Rows == 1, "Selected start page preserves existing content and layout");
+        Assert(targeted.Pages.Count == 4 && targeted.Pages.Skip(2).All(p => p.Width == texture.Width && p.Height == texture.Height &&
+            p.Rows == 2 && p.Columns == 2) && targeted.Pages[2].Slots[3].Text == "205" && targeted.Pages[3].Slots[0].Text == "206",
+            "Explicit resolution and fixed grid apply to empty and newly added pages, with ordered overflow");
+        targetedHistory.Record(new[] { targeted.Current.Selected });
+        string generated = targeted.Encode();
+        Assert(targetedHistory.Undo() && targeted.Active == 0 && targeted.Encode() == original &&
+            targetedHistory.Redo() && targeted.Active == 1 && targeted.Encode() == generated,
+            "One undo and redo covers the targeted placements and changed page settings");
+        AtlasBook reloaded = AtlasBook.Decode(generated);
+        Assert(reloaded.Encode() == generated, "Targeted layouts and custom resolution survive a project round trip");
+        string targetedOutput = Path.Combine(directory, "targeted-atlases-" + Guid.NewGuid().ToString("N"));
+        reloaded.ExportAll(engine, targetedOutput);
+        using (Bitmap exported = new Bitmap(Path.Combine(targetedOutput, "03_Atlas_atlas.png")))
+            Assert(exported.Size == texture, "Export uses the exact resolution chosen during generation");
+
+        int appendAt = targeted.Pages.Count;
+        BatchSigns.Add(targeted, engine, "301", template, appendAt, BatchSplit.Automatic, new Size(512, 512));
+        Assert(targeted.Active == appendAt && targeted.Current.Count == 1 && targeted.Current.Width == 512 &&
+            targeted.Current.Slots[0].Text == "301" && targeted.Pages[3].Filled == 1, "New-page destination skips existing gaps and supports automatic splitting");
+        string beforeFailure = targeted.Encode();
+        Throws(() => BatchSigns.Add(targeted, engine, "401,402,403,404", template, 3, BatchSplit.Fixed, new Size(128, 128), new Size(8, 8)),
+            "A grid with no usable area fails after planning a placement on an existing page");
+        Assert(targeted.Encode() == beforeFailure && targeted.Active == appendAt, "Invalid generation leaves all source pages untouched");
+
+        AtlasWorkspace merged = new AtlasWorkspace { TargetTextPixels = 32 };
+        merged.Merge(new[] { 0, 1 });
+        AtlasBook custom = new AtlasBook(merged);
+        BatchSigns.Add(custom, engine, "501", template, 0, resolution: texture);
+        Assert(custom.Current.Width == texture.Width && custom.Current.Regions[0].CellCount == 2 &&
+            custom.Current.Regions[1] == null && custom.Current.Slots[0].Text == "501", "Resizing an empty page can preserve its merged grid");
     }
 
     static void VerifyStandOcr(SignEngine engine, string directory)
@@ -163,7 +208,7 @@ static partial class Verify
             "PDF screenshot OCR does not turn taxiway tables into a stand list");
         AtlasBook book = new AtlasBook(new AtlasWorkspace());
         Settings template = new Settings { Kind = AssetKind.GroundStand, Arrow = "↑" };
-        Throws(() => BatchSigns.Add(book, engine, "001\n" + StandChartOcr.ReviewPrefix + "102]", template, true),
+        Throws(() => BatchSigns.Add(book, engine, "001\n" + StandChartOcr.ReviewPrefix + "102]", template, book.Active),
             "OCR review rows cannot be batch generated before correction");
     }
 

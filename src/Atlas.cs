@@ -386,7 +386,8 @@ namespace AirportSignStudio
         readonly CheckBox multiple = new CheckBox();
         readonly StudioDisclosure layoutOptions = new StudioDisclosure();
         readonly Timer paintTimer = new Timer { Interval = 180 };
-        static readonly Size[] Presets = { new Size(1024, 1024), new Size(2048, 2048), new Size(4096, 4096), new Size(8192, 8192), new Size(2048, 1024), new Size(4096, 2048) };
+        internal static readonly Size[] Presets = { new Size(1024, 1024), new Size(2048, 2048), new Size(4096, 4096), new Size(8192, 8192), new Size(2048, 1024), new Size(4096, 2048) };
+        internal static readonly string[] PresetLabels = { "1K · 1024 × 1024", "2K · 2048 × 2048", "4K · 4096 × 4096", "8K · 8192 × 8192", "横向 · 2048 × 1024", "横向 · 4096 × 2048", "自定义" };
         Settings copied;
         AtlasLayout layout;
         Size suggested;
@@ -447,7 +448,7 @@ namespace AirportSignStudio
             Number(grid, "留白 px", padding, 0, 256, workspace.Padding, 120);
             texture.Controls.Add(new Label { Text = "分辨率", AutoSize = true, Margin = new Padding(0, 6, 8, 0) });
             preset.DropDownStyle = ComboBoxStyle.DropDownList; preset.Width = 202; preset.AccessibleName = "拼图分辨率预设";
-            preset.Items.AddRange(new object[] { "1K · 1024 × 1024", "2K · 2048 × 2048", "4K · 4096 × 4096", "8K · 8192 × 8192", "横向 · 2048 × 1024", "横向 · 4096 × 2048", "自定义" }); texture.Controls.Add(StudioTheme.FrameInput(preset, 34));
+            preset.Items.AddRange(PresetLabels); texture.Controls.Add(StudioTheme.FrameInput(preset, 34));
             Number(texture, "宽", width, 128, 8192, workspace.Width, 134); Number(texture, "高", height, 128, 8192, workspace.Height, 134);
             Number(quality, "参考最小字高 px", target, 16, 1024, workspace.TargetTextPixels, 134);
             recommend.Text = "采用建议分辨率"; recommend.Width = 153; recommend.Height = 34; recommend.Margin = new Padding(12, 3, 12, 0); quality.Controls.Add(recommend);
@@ -605,7 +606,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.25.1"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.26.0"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }

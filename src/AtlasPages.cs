@@ -133,21 +133,71 @@ namespace AirportSignStudio
 
         public BatchSignsForm(AtlasBook book, SignEngine engine)
         {
-            Text = "批量生成标牌"; ClientSize = new Size(640, 530); MinimumSize = new Size(640, 430); StartPosition = FormStartPosition.CenterParent;
+            Text = "批量生成标牌"; ClientSize = new Size(660, 580); MinimumSize = new Size(650, 470); StartPosition = FormStartPosition.CenterParent;
             Padding = new Padding(16);
             AtlasWorkspace page = book.Current;
             Settings selected = page.Slots[page.Selected];
             bool canUseTemplate = selected != null && (selected.Kind != AssetKind.GroundOther || selected.OtherStyle != "NO ENTRY");
-            FlowLayoutPanel top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 82, FlowDirection = FlowDirection.LeftToRight };
+            FlowLayoutPanel top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 191, FlowDirection = FlowDirection.LeftToRight };
             Button import = new StudioButton { Text = "导入航图或截图…", Width = 156, Height = 34 };
             ComboBox mode = new StudioComboBox { Width = 208, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "批量标牌样式" };
             mode.Items.Add("地面机位编号");
             if (canUseTemplate) mode.Items.Add(selected.Kind == AssetKind.TaxiSign ? "套用选中标牌 · 替换首段" : "套用选中标牌样式");
             mode.SelectedIndex = canUseTemplate && selected.Kind == AssetKind.GroundStand ? 1 : 0;
-            CheckBox fill = new CheckBox { Text = "先填已有空格", AutoSize = true, Checked = true, Margin = new Padding(8, 9, 0, 0) };
-            top.Controls.Add(import); top.Controls.Add(StudioTheme.FrameInput(mode, 34)); top.Controls.Add(fill); top.SetFlowBreak(fill, true);
-            Label layout = new Label { Text = $"自动分页 · {page.Width} × {page.Height} px · 参考字高 {page.TargetTextPixels} px", AutoSize = true, Margin = new Padding(3, 8, 0, 6) };
+            top.Controls.Add(import); AddInput(mode, endRow: true);
+
+            ComboBox destination = Choose("起始拼图", 125);
+            for (int index = 1; index <= book.Pages.Count; index++) destination.Items.Add($"拼图 {index:D2}");
+            if (book.Pages.Count < AtlasBook.MaxPages) destination.Items.Add($"新建拼图 {book.Pages.Count + 1:D2}");
+            destination.SelectedIndex = book.Active;
+            ComboBox split = Choose("分割方式", 144);
+            split.Items.AddRange(new object[] { "优先用现有格", "自动按字高", "固定行列" });
+            split.SelectedIndex = (int)BatchSplit.ExistingFirst;
+            NumericUpDown rows = Number("行", 1, 8, page.Rows, 88), columns = Number("列", 1, 8, page.Columns, 88);
+            AddInput(destination, "起始拼图"); AddInput(split, "分割"); AddInput(rows, "行"); AddInput(columns, "列", endRow: true);
+
+            ComboBox preset = Choose("贴图分辨率", 162);
+            preset.Items.Add("沿用拼图尺寸");
+            preset.Items.AddRange(AtlasForm.PresetLabels);
+            NumericUpDown width = Number("宽 px", 128, 8192, page.Width, 128), height = Number("高 px", 128, 8192, page.Height, 128);
+            AddInput(preset, "分辨率"); AddInput(width, "宽 px"); AddInput(height, "高 px", endRow: true);
+
+            Label layout = new Label { AutoSize = true, Margin = new Padding(3, 7, 0, 6), ForeColor = StudioTheme.Muted };
             top.Controls.Add(layout);
+
+            AtlasWorkspace Source() => destination.SelectedIndex < book.Pages.Count ? book.Pages[destination.SelectedIndex] : page;
+            void SyncResolution()
+            {
+                int index = preset.SelectedIndex;
+                width.Enabled = height.Enabled = index == preset.Items.Count - 1;
+                if (width.Enabled) return;
+                AtlasWorkspace source = Source();
+                Size size = index == 0 ? new Size(source.Width, source.Height) : AtlasForm.Presets[index - 1];
+                width.Value = size.Width; height.Value = size.Height;
+            }
+            void SyncGrid() => rows.Enabled = columns.Enabled = split.SelectedIndex == (int)BatchSplit.Fixed;
+            void SyncDestination()
+            {
+                AtlasWorkspace source = Source();
+                layout.Text = $"已有标牌的拼图只补空格，保留分割和尺寸 · 参考字高 {source.TargetTextPixels} px";
+                SyncResolution();
+            }
+            preset.SelectedIndex = 0;
+            preset.SelectedIndexChanged += delegate { SyncResolution(); };
+            split.SelectedIndexChanged += delegate { SyncGrid(); };
+            destination.SelectedIndexChanged += delegate { SyncDestination(); };
+            SyncGrid(); SyncDestination();
+
+            void AddInput(Control input, string label = null, bool endRow = false)
+            {
+                if (label != null) top.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(3, 10, 1, 0) });
+                StudioField field = StudioTheme.FrameInput(input, 34);
+                top.Controls.Add(field);
+                if (endRow) top.SetFlowBreak(field, true);
+            }
+            ComboBox Choose(string name, int size) => new StudioComboBox { AccessibleName = name, Width = size, DropDownStyle = ComboBoxStyle.DropDownList };
+            NumericUpDown Number(string name, int min, int max, int value, int size) =>
+                new NumericUpDown { AccessibleName = name, Width = size, Minimum = min, Maximum = max, Value = value };
 
             TextBox list = new TextBox
             {
@@ -205,7 +255,13 @@ namespace AirportSignStudio
             generate.Click += delegate
             {
                 Settings template = mode.SelectedIndex == 1 ? selected : new Settings { Kind = AssetKind.GroundStand, Arrow = "↑" };
-                try { Generated = BatchSigns.Add(book, engine, list.Text, template, fill.Checked); DialogResult = DialogResult.OK; Close(); }
+                Size resolution = preset.SelectedIndex == 0 ? Size.Empty : new Size((int)width.Value, (int)height.Value);
+                Size grid = new Size((int)columns.Value, (int)rows.Value);
+                try
+                {
+                    Generated = BatchSigns.Add(book, engine, list.Text, template, destination.SelectedIndex, (BatchSplit)split.SelectedIndex, resolution, grid);
+                    DialogResult = DialogResult.OK; Close();
+                }
                 catch (Exception error) { MessageBox.Show(this, error.Message, "无法生成标牌"); }
             };
             count(); CompleteLayout();

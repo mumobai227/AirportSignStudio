@@ -11,6 +11,8 @@ using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace AirportSignStudio
 {
+    internal enum BatchSplit { ExistingFirst, Automatic, Fixed }
+
     internal static class BatchSigns
     {
         public const string MissingStand = "[待补编号]";
@@ -245,8 +247,8 @@ namespace AirportSignStudio
                 for (int columns = 1; columns <= 8; columns++)
                 {
                     int capacity = rows * columns;
-                    float width = (page.Width - 2f * page.Padding + page.Gap) / columns - page.Gap - 2 * page.Padding;
-                    float height = (page.Height - 2f * page.Padding + page.Gap) / rows - page.Gap - 2 * page.Padding;
+                    float width = ((page.Width - 2f * page.Padding + page.Gap) / columns - page.Gap - 2 * page.Padding) / page.TargetTextPixels;
+                    float height = ((page.Height - 2f * page.Padding + page.Gap) / rows - page.Gap - 2 * page.Padding) / page.TargetTextPixels;
                     int n = 0;
                     while (n < capacity && start + n < signs.Length && signs[start + n].Width <= width && signs[start + n].Height <= height) n++;
                     if (n < count || n == count && capacity >= places) continue;
@@ -255,11 +257,15 @@ namespace AirportSignStudio
             return best;
         }
 
-        public static int Add(AtlasBook book, SignEngine engine, string text, Settings template, bool fillExisting)
+        public static int Add(AtlasBook book, SignEngine engine, string text, Settings template, int startPage,
+            BatchSplit split = BatchSplit.ExistingFirst, Size resolution = default, Size grid = default)
         {
             string[] values = ParseList(text);
             if (values.Length == 0) throw new ArgumentException("请输入要生成的内容。");
-            AtlasWorkspace current = book.Current;
+            if (startPage < 0 || startPage > book.Pages.Count) throw new ArgumentException("请选择有效的起始拼图。");
+            if (!resolution.IsEmpty && (resolution.Width < 128 || resolution.Width > 8192 || resolution.Height < 128 || resolution.Height > 8192))
+                throw new ArgumentException("画布宽高支持 128–8192 px。");
+            AtlasWorkspace source = startPage < book.Pages.Count ? book.Pages[startPage] : book.Current;
             Settings[] signs = new Settings[values.Length];
             SizeF[] needed = new SizeF[values.Length];
             for (int i = 0; i < values.Length; i++)
@@ -274,7 +280,7 @@ namespace AirportSignStudio
                 try
                 {
                     using SignDocument preview = engine.Build(sign);
-                    float scale = current.TargetTextPixels / AtlasLayout.SmallestTextHeight(sign);
+                    float scale = 1f / AtlasLayout.SmallestTextHeight(sign);
                     needed[i] = new SizeF(preview.Width * scale, preview.Height * scale);
                 }
                 catch (ArgumentException error) { throw new ArgumentException(value + "：" + error.Message); }
@@ -282,39 +288,55 @@ namespace AirportSignStudio
             }
             int offset = 0;
             var placements = new List<(int Page, int Slot, Settings Sign)>();
-            var added = new List<AtlasWorkspace>();
-            if (fillExisting)
+            var layouts = new List<(int Index, AtlasWorkspace Page)>();
+            for (int index = startPage; offset < signs.Length; index++)
             {
-                for (int page = book.Active; page < book.Pages.Count && offset < signs.Length; page++)
+                if (index >= AtlasBook.MaxPages)
+                    throw new ArgumentException("一个工程最多可有 64 张拼图。请调整分割、分辨率或分批建立工程。");
+                AtlasWorkspace existing = index < book.Pages.Count ? book.Pages[index] : null;
+                AtlasWorkspace atlas = existing ?? source;
+                bool empty = existing == null || !existing.Slots.Any(slot => slot != null);
+                bool regrid = empty && (existing == null || split != BatchSplit.ExistingFirst);
+                bool resize = empty && !resolution.IsEmpty && (atlas.Width != resolution.Width || atlas.Height != resolution.Height);
+                int take = signs.Length - offset;
+                if (regrid || resize)
                 {
-                    AtlasWorkspace atlas = book.Pages[page];
-                    for (int slot = 0; slot < atlas.Count && offset < signs.Length; slot++)
+                    atlas = AtlasBook.BlankLike(atlas);
+                    if (!resolution.IsEmpty) { atlas.Width = resolution.Width; atlas.Height = resolution.Height; }
+                    if (regrid)
                     {
-                        if (atlas.Regions[slot] == null || atlas.Slots[slot] != null) continue;
-                        SizeF size = needed[offset];
-                        float ratio = (float)atlas.TargetTextPixels / current.TargetTextPixels;
-                        if (!Fits(atlas, slot, new SizeF(size.Width * ratio, size.Height * ratio))) continue;
-                        placements.Add((page, slot, signs[offset++]));
+                        Size chosen = grid;
+                        if (split != BatchSplit.Fixed)
+                        {
+                            chosen = ChooseGrid(atlas, needed, offset, out take);
+                            take = Math.Max(1, take); // Allow one undersized sign and keep the usual density warning.
+                        }
+                        atlas.Resize(chosen.Height, chosen.Width);
                     }
+                    else Array.Copy(existing.Regions, atlas.Regions, atlas.Regions.Length);
+                    if (existing != null)
+                    {
+                        atlas.ProjectPath = existing.ProjectPath; atlas.SavedProject = existing.SavedProject;
+                        Array.Copy(existing.PolNames, atlas.PolNames, atlas.PolNames.Length);
+                    }
+                    for (int slot = 0; slot < atlas.Count; slot++)
+                        if (atlas.Regions[slot] != null) AtlasLayout.Cell(atlas, slot, atlas.Width, atlas.Height);
                 }
-            }
-            while (offset < signs.Length)
-            {
-                if (book.Pages.Count + added.Count >= AtlasBook.MaxPages)
-                    throw new ArgumentException("一个工程最多可有 64 张拼图。请提高分辨率、调整参考字高，或分批建立工程。");
-                AtlasWorkspace page = AtlasBook.BlankLike(current);
-                Size grid = ChooseGrid(page, needed, offset, out int take);
-                page.Resize(grid.Height, grid.Width);
-                if (take == 0)
+                int before = offset;
+                for (int slot = 0; slot < atlas.Count && offset - before < take; slot++)
                 {
-                    if (!Fits(page, 0, SizeF.Empty)) throw new ArgumentException("当前分辨率和留白无法容纳单格，请先调整画布。");
-                    take = 1; // Keep the sign at the requested resolution and let the usual density hint mark it.
+                    if (atlas.Regions[slot] == null || atlas.Slots[slot] != null) continue;
+                    SizeF size = needed[offset];
+                    if (!regrid && !Fits(atlas, slot, new SizeF(size.Width * atlas.TargetTextPixels, size.Height * atlas.TargetTextPixels))) continue;
+                    placements.Add((index, slot, signs[offset++]));
                 }
-                int index = book.Pages.Count + added.Count;
-                added.Add(page);
-                for (int i = 0; i < take; i++) placements.Add((index, i, signs[offset++]));
+                if (offset > before && atlas != existing) layouts.Add((index, atlas));
             }
-            book.Pages.AddRange(added);
+            foreach (var layout in layouts)
+            {
+                if (layout.Index < book.Pages.Count) book.Pages[layout.Index] = layout.Page;
+                else book.Pages.Add(layout.Page);
+            }
             foreach (var placement in placements) book.Pages[placement.Page].Slots[placement.Slot] = placement.Sign;
             book.Active = placements[0].Page;
             book.Current.Selected = placements[0].Slot;
