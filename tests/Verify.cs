@@ -33,7 +33,12 @@ static partial class Verify
             {"text":"101","position_source":"official_stand_coordinate_table"}]}
             """, out review);
         Assert(confirmed.SequenceEqual(new[] { "101" }) && review == 0, "AutoCharts official positions take priority");
-        AtlasWorkspace first = new AtlasWorkspace { Width = 512, Height = 256, XPlane = true, PolPrefix = "Stand" };
+        string[] associated = BatchSigns.FromReport("""
+            {"stand_label_candidates":[{"text":"A1","status":"vector_label_only"},
+            {"text":"B2","status":"lead_in_associated","associated_guidance_sources":["curve:7"]}]}
+            """, out review);
+        Assert(associated.SequenceEqual(new[] { "B2" }) && review == 1, "Chart label alone is not a stand");
+        AtlasWorkspace first = new AtlasWorkspace { Width = 512, Height = 256, XPlane = true, PolPrefix = "Stand", TargetTextPixels = 32 };
         first.Resize(2, 2);
         first.Slots[0] = new Settings { Kind = AssetKind.GroundStand, Text = "099", Arrow = "↑" };
         first.Selected = 2;
@@ -68,6 +73,21 @@ static partial class Verify
         string failed = folder + "-failed";
         Throws(() => loaded.ExportAll(engine, failed), "Invalid page fails batch export");
         Assert(!Directory.Exists(failed), "Failed batch exposes no partial output");
+
+        AtlasWorkspace smallSlots = new AtlasWorkspace { Width = 1024, Height = 1024, TargetTextPixels = 160 };
+        smallSlots.Resize(8, 8);
+        AtlasBook large = new AtlasBook(smallSlots);
+        string[] ids = Enumerable.Range(100, 40).Select(i => i.ToString()).ToArray();
+        Assert(BatchSigns.Add(large, engine, string.Join("\n", ids), template, true) == ids.Length && large.Pages.Count > 2,
+            "A large batch creates additional density-aware pages");
+        Assert(smallSlots.Filled == 0 && large.Pages.Skip(1).All(p => p.Count < smallSlots.Count),
+            "Density-aware packing bypasses undersized existing slots and picks a smaller grid");
+        Assert(large.Pages.SelectMany(p => p.Slots).Where(s => s != null).Select(s => s.Text).SequenceEqual(ids),
+            "Automatic pagination preserves every identifier in order");
+        foreach (AtlasWorkspace page in large.Pages.Skip(1))
+            using (AtlasLayout atlas = AtlasLayout.Build(engine, page))
+                Assert(atlas.Slots.Where(slot => slot.Occupied).All(slot => slot.SmallestTextPixels >= page.TargetTextPixels - 0.05f),
+                    "Automatically split pages meet the requested density when possible");
     }
 
     static void VerifySliderPrecision()

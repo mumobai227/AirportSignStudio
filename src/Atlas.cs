@@ -15,6 +15,11 @@ namespace AirportSignStudio
         public AtlasLayout CurrentLayout;
         public AtlasWorkspace Workspace;
         public Bitmap Painted;
+        internal AtlasBook Book;
+        internal Func<AtlasWorkspace, AtlasLayout> BuildPage;
+        internal Action<int> ActivatePage;
+        AtlasStripGeometry strip;
+        readonly Dictionary<AtlasWorkspace, AtlasLayout> neighbouring = new Dictionary<AtlasWorkspace, AtlasLayout>();
         public readonly HashSet<int> Selection = new HashSet<int>();
         public bool MultiSelect;
         public bool WholeDivider;
@@ -33,7 +38,7 @@ namespace AirportSignStudio
         {
             DoubleBuffered = true; ResizeRedraw = true; TabStop = true;
             selectionMotion = new StudioMotion(this, value => Invalidate());
-            AccessibleName = "拼图预览：滚轮缩放，中键或空格加拖动平移，点击编辑，Ctrl 多选，拖动分隔线调整边界";
+            AccessibleName = "拼图预览：多张时滚轮纵向滚动、Ctrl 加滚轮缩放。点击某张拼图中的格子可编辑。";
         }
         public void SelectionChanged()
         {
@@ -43,12 +48,35 @@ namespace AirportSignStudio
         RectangleF View()
         {
             if (Workspace == null) return RectangleF.Empty;
-            viewport.Resize(ClientSize, new Size(Workspace.Width, Workspace.Height), 26 * StudioTheme.Scale(this));
+            RectangleF bounds = StripView();
+            return strip == null ? bounds : strip.Bounds(Book.Active, bounds, viewport.Scale);
+        }
+        RectangleF StripView()
+        {
+            Size size = strip == null ? new Size(Workspace.Width, Workspace.Height) : strip.Extent;
+            viewport.Resize(ClientSize, size, 26 * StudioTheme.Scale(this), strip == null ? size : strip.FitReference);
             return viewport.Bounds;
+        }
+        internal void ResetNeighbours()
+        {
+            foreach (AtlasLayout page in neighbouring.Values) page?.Dispose();
+            neighbouring.Clear();
+        }
+        internal void SyncPages()
+        {
+            strip = Book?.Pages.Count > 1 ? new AtlasStripGeometry(Book.Pages.Select(p => new Size(p.Width, p.Height)).ToArray()) : null;
+            if (Workspace != null && neighbouring.Remove(Workspace, out AtlasLayout cached)) cached?.Dispose();
+        }
+        internal void RevealActive()
+        {
+            if (strip == null) { ChangedView(); return; }
+            RectangleF page = View();
+            viewport.Move(0, Height / 2f - page.Top - page.Height / 2);
+            ChangedView();
         }
         public float Zoom { get { View(); return viewport.Scale; } }
         public bool IsFit { get { return viewport.IsFit; } }
-        public void FitView() { FinishDrag(false); StopPan(); viewport.Fit(); ChangedView(); }
+        public void FitView() { FinishDrag(false); StopPan(); viewport.Fit(); RevealActive(); }
         public void SetZoom(float scale) { FinishDrag(false); StopPan(); View(); viewport.ZoomAt(scale, new PointF(Width / 2f, Height / 2f)); ChangedView(); }
         public void ZoomBy(float factor) { SetZoom(Zoom * factor); }
         void ChangedView() { Invalidate(); if (ViewChanged != null) ViewChanged(); }
@@ -56,9 +84,13 @@ namespace AirportSignStudio
         protected override void OnResize(EventArgs e) { base.OnResize(e); if (viewport != null) { View(); ChangedView(); } }
         protected override void OnMouseWheel(MouseEventArgs e)
         {
-            if (dragging == null && !panning && CurrentLayout != null)
+            if (dragging == null && !panning && (CurrentLayout != null || strip != null))
             {
-                View(); viewport.ZoomAt(viewport.Scale * (float)Math.Pow(1.2, e.Delta / 120.0), e.Location); ChangedView();
+                View();
+                if (strip != null && (ModifierKeys & Keys.Control) == 0)
+                    viewport.Move(0, 100 * StudioTheme.Scale(this) * e.Delta / 120);
+                else viewport.ZoomAt(viewport.Scale * (float)Math.Pow(1.2, e.Delta / 120.0), e.Location);
+                ChangedView();
             }
             base.OnMouseWheel(e);
         }
@@ -66,8 +98,46 @@ namespace AirportSignStudio
         {
             base.OnPaint(e);
             Graphics g = e.Graphics; g.Clear(StudioTheme.Canvas);
-            RectangleF view = View();
-            if (CurrentLayout == null || view.IsEmpty) return;
+            if (Workspace == null) return;
+            RectangleF view = StripView();
+            if (view.IsEmpty) return;
+            if (strip == null)
+            {
+                if (CurrentLayout != null) DrawPage(g, view, Workspace, CurrentLayout, true, -1);
+            }
+            else
+            {
+                HashSet<AtlasWorkspace> visible = new HashSet<AtlasWorkspace>();
+                for (int i = 0; i < Book.Pages.Count; i++)
+                {
+                    RectangleF pageBounds = strip.Bounds(i, view, viewport.Scale);
+                    if (!pageBounds.IntersectsWith(ClientRectangle)) continue;
+                    AtlasWorkspace page = Book.Pages[i];
+                    bool active = i == Book.Active;
+                    AtlasLayout pageLayout = CurrentLayout;
+                    if (!active)
+                    {
+                        if (!neighbouring.TryGetValue(page, out pageLayout))
+                        {
+                            try { pageLayout = BuildPage(page); }
+                            catch (ArgumentException) { pageLayout = null; }
+                            neighbouring.Add(page, pageLayout);
+                        }
+                        visible.Add(page);
+                    }
+                    DrawPage(g, pageBounds, page, pageLayout, active, i);
+                }
+                foreach (AtlasWorkspace page in neighbouring.Keys.Where(p => !visible.Contains(p)).ToArray())
+                {
+                    neighbouring[page]?.Dispose();
+                    neighbouring.Remove(page);
+                }
+            }
+            StudioTheme.CanvasFrame(this, g);
+        }
+
+        void DrawPage(Graphics g, RectangleF view, AtlasWorkspace page, AtlasLayout pageLayout, bool active, int pageIndex)
+        {
             float uiScale = StudioTheme.Scale(this);
             using (Brush shadow = new SolidBrush(Color.FromArgb(18, 36, 36, 33)))
                 g.FillRectangle(shadow, view.X - 3 * uiScale, view.Y + 3 * uiScale, view.Width + 6 * uiScale, view.Height + 3 * uiScale);
@@ -83,25 +153,26 @@ namespace AirportSignStudio
                     if ((x + y) % 2 == 0) g.FillRectangle(b, view.X + x * tile, view.Y + y * tile, tile, tile);
                 g.Restore(clip);
             }
-            float scale = view.Width / Workspace.Width;
-            if (Painted != null) g.DrawImage(Painted, view);
-            else
+            float scale = view.Width / page.Width;
+            if (active && Painted != null) g.DrawImage(Painted, view);
+            else if (pageLayout != null)
             {
                 GraphicsState state = g.Save();
                 using (Matrix matrix = new Matrix(scale, 0, 0, scale, view.X, view.Y)) g.Transform = matrix;
-                CurrentLayout.Document.Draw(g); g.Restore(state);
+                pageLayout.Document.Draw(g); g.Restore(state);
             }
             using (Font font = DpiLayout.Font(this, 9, FontStyle.Regular))
             using (StringFormat center = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                for (int i = 0; i < CurrentLayout.Slots.Count; i++)
+                for (int i = 0; i < (pageLayout?.Slots.Count ?? 0); i++)
                 {
-                    AtlasSlotInfo slot = CurrentLayout.Slots[i];
+                    AtlasSlotInfo slot = pageLayout.Slots[i];
                     if (!slot.Visible) continue;
                     RectangleF box = new RectangleF(view.X + slot.Cell.X * scale, view.Y + slot.Cell.Y * scale, slot.Cell.Width * scale, slot.Cell.Height * scale);
                     if (!box.IntersectsWith(ClientRectangle)) continue;
-                    bool low = slot.Occupied && slot.Error.Length == 0 && slot.SmallestTextPixels < Workspace.TargetTextPixels;
-                    Color color = Selection.Contains(i) ? StudioTheme.Blend(StudioTheme.Muted, StudioTheme.Ink, selectionMotion.Value) : slot.Error.Length > 0 ? Color.Firebrick : low ? Color.FromArgb(173, 98, 17) : Color.FromArgb(175, 175, 166);
-                    using (Pen pen = new Pen(color, (i == Workspace.Selected ? 1.5f + selectionMotion.Value * 0.5f : Selection.Contains(i) ? 2 : 0.8f) * uiScale))
+                    bool low = slot.Occupied && slot.Error.Length == 0 && slot.SmallestTextPixels < page.TargetTextPixels;
+                    bool selected = active && Selection.Contains(i);
+                    Color color = selected ? StudioTheme.Blend(StudioTheme.Muted, StudioTheme.Ink, selectionMotion.Value) : slot.Error.Length > 0 ? Color.Firebrick : low ? Color.FromArgb(173, 98, 17) : Color.FromArgb(175, 175, 166);
+                    using (Pen pen = new Pen(color, (active && i == page.Selected ? 1.5f + selectionMotion.Value * 0.5f : selected ? 2 : 0.8f) * uiScale))
                     {
                         if (!slot.Occupied) pen.DashStyle = DashStyle.Dash;
                         g.DrawRectangle(pen, box.X, box.Y, box.Width, box.Height);
@@ -109,7 +180,7 @@ namespace AirportSignStudio
                     using (Brush text = new SolidBrush(color))
                     using (Brush badge = new SolidBrush(Color.FromArgb(230, 247, 247, 245)))
                     {
-                        string label = (i + 1).ToString() + (Workspace.Regions[i].Children == null ? "" : " 合并") + (slot.Error.Length > 0 ? "  检查输入" : low ? "  字高 " + slot.SmallestTextPixels.ToString("0") + " px" : "");
+                        string label = (i + 1).ToString() + (page.Regions[i].Children == null ? "" : " 合并") + (slot.Error.Length > 0 ? "  检查输入" : low ? "  字高 " + slot.SmallestTextPixels.ToString("0") + " px" : "");
                         SizeF size = g.MeasureString(label, font);
                         GraphicsState cellClip = g.Save(); g.SetClip(box);
                         using (GraphicsPath pill = StudioTheme.Rounded(new RectangleF(box.X + 4, box.Y + 4, size.Width + 8, size.Height + 3), 4 * uiScale)) g.FillPath(badge, pill);
@@ -118,7 +189,7 @@ namespace AirportSignStudio
                         if (slot.Error.Length > 0) g.DrawString("输入有误", font, text, box, center);
                         g.Restore(cellClip);
                     }
-                    if (i == Workspace.Selected && !MultiSelect)
+                    if (active && i == page.Selected && !MultiSelect)
                         using (Brush handle = new SolidBrush(StudioTheme.Ink))
                             foreach (AtlasEdge edge in Enum.GetValues(typeof(AtlasEdge)))
                             {
@@ -128,7 +199,7 @@ namespace AirportSignStudio
                                 g.FillEllipse(handle, x - 3 * uiScale, y - 3 * uiScale, 6 * uiScale, 6 * uiScale);
                             }
                 }
-            if (dragging != null)
+            if (active && dragging != null)
                 using (Pen pen = new Pen(StudioTheme.Ink, 2))
                 {
                     float x = view.X + (Workspace.Padding - Workspace.Gap / 2f) * scale, y = view.Y + (Workspace.Padding - Workspace.Gap / 2f) * scale;
@@ -142,9 +213,22 @@ namespace AirportSignStudio
                             g.DrawLine(pen, x + bounds.Left * w, y + dragging.Position * h, x + bounds.Right * w, y + dragging.Position * h);
                     }
                 }
-            StudioTheme.CanvasFrame(this, g);
+            if (pageIndex >= 0)
+            {
+                using Pen outline = new Pen(active ? StudioTheme.Ink : StudioTheme.Muted, (active ? 1.5f : 1) * uiScale);
+                g.DrawRectangle(outline, view.X, view.Y, view.Width, view.Height);
+                RectangleF label = new RectangleF(view.Left + 4 * uiScale, view.Top + 4 * uiScale, 78 * uiScale, 22 * uiScale);
+                if (view.Width >= label.Width && view.Height >= label.Height)
+                {
+                    using Brush background = new SolidBrush(active ? StudioTheme.Ink : StudioTheme.Sidebar);
+                    using Brush text = new SolidBrush(active ? Color.White : StudioTheme.Ink);
+                    using Font font = DpiLayout.Font(this, 8.5f, FontStyle.Regular);
+                    g.FillRectangle(background, label);
+                    g.DrawString($"拼图 {pageIndex + 1:D2}", font, text, label.X + 6 * uiScale, label.Y + 2 * uiScale);
+                }
+            }
         }
-        protected override void Dispose(bool disposing) { if (disposing) selectionMotion.Dispose(); base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if (disposing) { ResetNeighbours(); selectionMotion.Dispose(); } base.Dispose(disposing); }
 
         AtlasDivider DividerAt(Point point, out int index)
         {
@@ -173,11 +257,18 @@ namespace AirportSignStudio
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e); Focus();
-            if (CurrentLayout == null) return;
             if (e.Button == MouseButtons.Middle || e.Button == MouseButtons.Left && spaceHeld)
             {
                 FinishDrag(false); panning = true; panStart = e.Location; Capture = true; Cursor = Cursors.Hand; return;
             }
+            if (strip != null && (e.Button == MouseButtons.Left || e.Button == MouseButtons.Right))
+            {
+                RectangleF bounds = StripView();
+                int page = strip.Hit(e.Location, bounds, viewport.Scale);
+                if (page < 0) return;
+                if (page != Book.Active) ActivatePage?.Invoke(page);
+            }
+            if (CurrentLayout == null) return;
             if (e.Button == MouseButtons.Right)
             {
                 RectangleF box = View(); if (box.IsEmpty || !box.Contains(e.Location)) return;
@@ -305,6 +396,9 @@ namespace AirportSignStudio
         {
             engine = renderer; editor = new SlotEditor(engine);
             book = new AtlasBook(state); preview.Workspace = workspace; history = new AtlasHistory(book);
+            preview.Book = book;
+            preview.BuildPage = page => AtlasLayout.Build(engine, page);
+            preview.ActivatePage = index => ChangePage(index, false);
             ProjectTitle();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             BackColor = StudioTheme.Surface; ForeColor = StudioTheme.Ink;
@@ -511,7 +605,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.23.1"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(book.ProjectPath) ? "未命名工程" : Path.GetFileName(book.ProjectPath)) + " · Airport Sign Studio 3.24"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }
@@ -528,7 +622,9 @@ namespace AirportSignStudio
             preview.FinishDrag(false); CommitEdits(); history.Record(preview.Selection);
             if (!(forward ? history.Redo() : history.Undo())) return;
             int[] selection = history.Selection;
-            if (preview.Workspace != workspace) { preview.Workspace = workspace; preview.FitView(); }
+            bool changedPage = preview.Workspace != workspace;
+            preview.Workspace = workspace; preview.ResetNeighbours(); preview.SyncPages();
+            if (changedPage) preview.RevealActive();
             SyncPagePicker(); SyncWorkspace(); preview.Selection.Clear(); preview.Selection.UnionWith(selection); UpdateSelection();
             RefreshAtlas(); preview.Focus();
         }
@@ -577,7 +673,7 @@ namespace AirportSignStudio
             book.Restore(loaded.Pages, loaded.Active);
             book.ProjectPath = loaded.ProjectPath; book.SavedProject = loaded.SavedProject;
             multiple.Checked = false; copied = null; paste.Enabled = false;
-            preview.Workspace = workspace;
+            preview.Workspace = workspace; preview.ResetNeighbours(); preview.SyncPages();
             preview.FitView(); SyncPagePicker(); SyncWorkspace(); history.Reset(preview.Selection); RefreshAtlas(); ProjectTitle();
         }
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -672,6 +768,7 @@ namespace AirportSignStudio
 
         void RefreshAtlas()
         {
+            preview.SyncPages();
             history.Record(preview.Selection); UpdateHistoryButtons();
             copy.Enabled = workspace.Slots[workspace.Selected] != null;
             paintTimer.Stop(); if (preview.Painted != null) { preview.Painted.Dispose(); preview.Painted = null; }
@@ -702,7 +799,7 @@ namespace AirportSignStudio
             AtlasSlotInfo slot = layout.Slots[workspace.Selected];
             if (!slot.Occupied) { detail.Text = "空白 · " + slot.Cell.Width.ToString("0") + " × " + slot.Cell.Height.ToString("0") + " px"; return; }
             if (slot.Error.Length > 0) { detail.Text = "槽位 " + (workspace.Selected + 1) + "：" + slot.Error; return; }
-            string physicalSize = workspace.Slots[workspace.Selected].AspectRatio == null ? "" :
+            string physicalSize = workspace.Slots[workspace.Selected]?.AspectRatio == null ? "" :
                 " · 尺寸 " + slot.PhysicalWidth.ToString("0.##") + " × " + slot.PhysicalHeight.ToString("0.##") + " mm";
             detail.Text = "槽位 " + (workspace.Selected + 1) + " · " + slot.Caption + physicalSize + " · 图案 " + slot.Image.Width.ToString("0") + " × " + slot.Image.Height.ToString("0") + " px · " + (slot.Scale * 1000).ToString("0") + " px/m\n" +
                 "主字高 " + slot.CharacterPixels.ToString("0") + " px · 最小字高 " + slot.SmallestTextPixels.ToString("0") + " px · 参考 " + workspace.TargetTextPixels + " px";

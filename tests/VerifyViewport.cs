@@ -34,6 +34,19 @@ static partial class Verify
         view.Resize(new Size(100, 40), new Size(8192, 8192), 26); Assert(view.Bounds.IsEmpty, "Tiny viewport is safe");
         view.Resize(new Size(1000, 700), new Size(4096, 2048), 26); Near(view.Bounds.Width / view.Bounds.Height, 2, "Wide texture aspect preserved");
 
+        AtlasStripGeometry strip = new AtlasStripGeometry(new[] { new Size(2048, 1024), new Size(2048, 1024), new Size(1024, 2048) });
+        view.Fit();
+        view.Resize(new Size(1000, 700), strip.Extent, 26, strip.FitReference);
+        view.Move(0, 100000);
+        RectangleF firstPage = strip.Bounds(0, view.Bounds, view.Scale), secondPage = strip.Bounds(1, view.Bounds, view.Scale);
+        Near(firstPage.Top, 26, "Strip begins at first page inset");
+        Assert(secondPage.Top > firstPage.Bottom && secondPage.Top < 700, "Adjacent pages can be visible together with a gap");
+        float midGap = (firstPage.Bottom + secondPage.Top) / 2;
+        Assert(strip.Hit(new PointF(500, midGap), view.Bounds, view.Scale) == -1 &&
+            strip.Hit(new PointF(500, secondPage.Top + 1), view.Bounds, view.Scale) == 1, "Page hit test preserves boundaries");
+        view.Move(0, -100000);
+        Near(strip.Bounds(2, view.Bounds, view.Scale).Bottom, 674, "Fitted view scrolls to final page");
+
         AtlasWorkspace workspace = new AtlasWorkspace(); workspace.Slots[0] = new Settings(); workspace.Slots[1] = new Settings { Text = "B2" };
         Assert(!workspace.XPlane, "New project defaults to PNG only");
         workspace.PolPrefix = "PersistedSigns"; workspace.PolLayer = "airports"; workspace.PolOffset = -2; workspace.PolBleed = 5; workspace.PolBoundary = PolBoundaryMode.Cell;

@@ -7,7 +7,7 @@ namespace AirportSignStudio
     internal sealed class PreviewViewport
     {
         public const float MinimumZoom = 0.01f, MaximumZoom = 8;
-        Size viewport, image;
+        Size viewport, image, fitReference;
         float inset, zoom = 1;
         PointF pan;
         public bool IsFit { get; private set; } = true;
@@ -16,7 +16,7 @@ namespace AirportSignStudio
             get
             {
                 if (image.Width <= 0 || image.Height <= 0) return 0;
-                return IsFit ? Math.Max(0, Math.Min((viewport.Width - 2 * inset) / image.Width, (viewport.Height - 2 * inset) / image.Height)) : zoom;
+                return IsFit ? Math.Max(0, Math.Min((viewport.Width - 2 * inset) / fitReference.Width, (viewport.Height - 2 * inset) / fitReference.Height)) : zoom;
             }
         }
         public RectangleF Bounds
@@ -27,9 +27,10 @@ namespace AirportSignStudio
                 return new RectangleF((viewport.Width - image.Width * scale) / 2 + pan.X, (viewport.Height - image.Height * scale) / 2 + pan.Y, image.Width * scale, image.Height * scale);
             }
         }
-        public void Resize(Size client, Size pixels, float margin)
+        public void Resize(Size client, Size pixels, float margin, Size fitPixels = default)
         {
-            viewport = client; image = pixels; inset = margin; ClampPan();
+            viewport = client; image = pixels; fitReference = fitPixels.IsEmpty ? pixels : fitPixels;
+            inset = margin; ClampPan();
         }
         public void Fit() { IsFit = true; pan = PointF.Empty; }
         public PointF ImagePoint(PointF screen)
@@ -51,7 +52,39 @@ namespace AirportSignStudio
         {
             float x = Math.Max(0, (image.Width * Scale - Math.Max(1, viewport.Width - 2 * inset)) / 2);
             float y = Math.Max(0, (image.Height * Scale - Math.Max(1, viewport.Height - 2 * inset)) / 2);
-            pan = IsFit ? PointF.Empty : new PointF(Math.Max(-x, Math.Min(x, pan.X)), Math.Max(-y, Math.Min(y, pan.Y)));
+            pan = new PointF(Math.Max(-x, Math.Min(x, pan.X)), Math.Max(-y, Math.Min(y, pan.Y)));
+        }
+    }
+
+    internal sealed class AtlasStripGeometry
+    {
+        public readonly Size Extent, FitReference;
+        readonly Rectangle[] pages;
+        public AtlasStripGeometry(Size[] sizes)
+        {
+            int widest = 0, tallest = 0;
+            foreach (Size size in sizes) { widest = Math.Max(widest, size.Width); tallest = Math.Max(tallest, size.Height); }
+            int gap = Math.Max(24, widest / 24);
+            pages = new Rectangle[sizes.Length];
+            int top = 0;
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                Size size = sizes[i];
+                pages[i] = new Rectangle((widest - size.Width) / 2, top, size.Width, size.Height);
+                top += size.Height + gap;
+            }
+            Extent = new Size(widest, top - gap);
+            FitReference = new Size(widest, tallest);
+        }
+        public RectangleF Bounds(int index, RectangleF strip, float scale)
+        {
+            Rectangle box = pages[index];
+            return new RectangleF(strip.X + box.X * scale, strip.Y + box.Y * scale, box.Width * scale, box.Height * scale);
+        }
+        public int Hit(PointF point, RectangleF strip, float scale)
+        {
+            for (int i = 0; i < pages.Length; i++) if (Bounds(i, strip, scale).Contains(point)) return i;
+            return -1;
         }
     }
 }

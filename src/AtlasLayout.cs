@@ -224,8 +224,7 @@ namespace AirportSignStudio
                             info.CustomColors = part.Shapes.All(s => s.CustomColors);
                             info.PhysicalWidth = part.Width; info.PhysicalHeight = part.Height;
                             info.CharacterHeight = settings.CharacterHeight;
-                            info.SmallestTextHeight = settings.CharacterHeight * (settings.Kind == AssetKind.StandSign && settings.Coordinates ? 0.25f :
-                                settings.Kind == AssetKind.GroundOther && settings.OtherStyle == "MAX SPAN" ? 0.7f : 1);
+                            info.SmallestTextHeight = SmallestTextHeight(settings);
                             info.Caption = part.Caption;
                             info.Scale = FitScale(info, info.Cell, workspace.Padding);
                             float w = part.Width * info.Scale, h = part.Height * info.Scale;
@@ -256,6 +255,12 @@ namespace AirportSignStudio
         static float FitScale(AtlasSlotInfo slot, RectangleF cell, int padding)
         {
             return Math.Min((cell.Width - 2 * padding) / slot.PhysicalWidth, (cell.Height - 2 * padding) / slot.PhysicalHeight);
+        }
+
+        internal static float SmallestTextHeight(Settings settings)
+        {
+            return settings.CharacterHeight * (settings.Kind == AssetKind.StandSign && settings.Coordinates ? 0.25f :
+                settings.Kind == AssetKind.GroundOther && settings.OtherStyle == "MAX SPAN" ? 0.7f : 1);
         }
 
         public int HitTest(PointF point)

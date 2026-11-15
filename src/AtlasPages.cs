@@ -23,9 +23,7 @@ namespace AirportSignStudio
             pagePicker.SelectedIndexChanged += delegate
             {
                 if (updatingPages || pagePicker.SelectedIndex < 0 || pagePicker.SelectedIndex == book.Active) return;
-                preview.FinishDrag(false); CommitEdits();
-                book.Active = pagePicker.SelectedIndex;
-                ShowActivePage();
+                ChangePage(pagePicker.SelectedIndex, true);
             };
             SyncPagePicker();
         }
@@ -42,11 +40,19 @@ namespace AirportSignStudio
             updatingPages = false;
         }
 
-        void ShowActivePage()
+        void ChangePage(int index, bool reveal)
+        {
+            preview.FinishDrag(false); CommitEdits();
+            book.Active = index;
+            ShowActivePage(reveal);
+        }
+
+        void ShowActivePage(bool reveal = true)
         {
             preview.Workspace = workspace;
             multiple.Checked = false;
-            preview.FitView(); SyncPagePicker(); SyncWorkspace(); RefreshAtlas();
+            preview.SyncPages(); SyncPagePicker(); SyncWorkspace(); RefreshAtlas();
+            if (reveal) preview.RevealActive();
         }
 
         void AddAtlasPage()
@@ -74,6 +80,7 @@ namespace AirportSignStudio
             CommitEdits();
             using BatchSignsForm dialog = new BatchSignsForm(book, engine);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            preview.ResetNeighbours();
             ShowActivePage();
             status.Text = "已生成 " + dialog.Generated + " 个标牌 · 工程共 " + book.Pages.Count + " 张拼图";
         }
@@ -136,9 +143,9 @@ namespace AirportSignStudio
             mode.Items.Add("地面机位编号");
             if (canUseTemplate) mode.Items.Add(selected.Kind == AssetKind.TaxiSign ? "套用选中标牌 · 替换首段" : "套用选中标牌样式");
             mode.SelectedIndex = canUseTemplate && selected.Kind == AssetKind.GroundStand ? 1 : 0;
-            CheckBox fill = new CheckBox { Text = "先填当前拼图的空格", AutoSize = true, Checked = true, Margin = new Padding(8, 9, 0, 0) };
+            CheckBox fill = new CheckBox { Text = "先填已有空格", AutoSize = true, Checked = true, Margin = new Padding(8, 9, 0, 0) };
             top.Controls.Add(import); top.Controls.Add(StudioTheme.FrameInput(mode, 34)); top.Controls.Add(fill); top.SetFlowBreak(fill, true);
-            Label layout = new Label { Text = $"每张新拼图：{page.Rows} 行 × {page.Columns} 列 · {page.Width} × {page.Height} px", AutoSize = true, Margin = new Padding(3, 8, 0, 6) };
+            Label layout = new Label { Text = $"自动分页 · {page.Width} × {page.Height} px · 参考字高 {page.TargetTextPixels} px", AutoSize = true, Margin = new Padding(3, 8, 0, 6) };
             top.Controls.Add(layout);
 
             TextBox list = new TextBox
@@ -157,13 +164,10 @@ namespace AirportSignStudio
             Action count = delegate
             {
                 int entries = BatchSigns.ParseList(list.Text).Length;
-                int free = fill.Checked ? Enumerable.Range(0, page.Count).Count(i => page.Regions[i] != null && page.Slots[i] == null) : 0;
-                int extra = (Math.Max(0, entries - free) + page.Count - 1) / page.Count;
                 generate.Enabled = entries > 0;
-                message.Text = $"{entries} 项 · 新增 {extra} 张拼图" + (sourceNote.Length == 0 ? "" : Environment.NewLine + sourceNote);
+                message.Text = $"{entries} 项" + (sourceNote.Length == 0 ? "" : Environment.NewLine + sourceNote);
             };
             list.TextChanged += delegate { count(); };
-            fill.CheckedChanged += delegate { count(); };
             import.Click += delegate
             {
                 using OpenFileDialog file = new OpenFileDialog
@@ -190,11 +194,11 @@ namespace AirportSignStudio
                         }
                         else imported.AddRange(BatchSigns.ParseList(text));
                     }
-                    sourceNote = !table ? "图面提取的是候选编号，请删除跑道、滑行道等误识内容。" :
-                        review > 0 ? $"{review} 条识别记录待核对。请补全“{BatchSigns.MissingStand}”或删除该行。" :
+                    sourceNote = review > 0 ? $"{review} 条识别记录待核对。请补全“{BatchSigns.MissingStand}”或删除该行。" :
+                        !table ? "已跳过普通平面图，请导入 0P 机位坐标表或带机位依据的识别 JSON。" :
                         "请对照来源检查编号清单。";
                     string newText = string.Join(Environment.NewLine, imported.Where(line => line.Length > 0));
-                    if (newText.Length == 0) throw new ArgumentException("所选文件没有可导入的内容。");
+                    if (newText.Length == 0) throw new ArgumentException("没有可确认的机位编号。请导入 0P 机位坐标表、机位识别 JSON，或粘贴已核对的编号。");
                     list.AppendText((list.TextLength == 0 ? "" : Environment.NewLine) + newText);
                     count();
                 }
