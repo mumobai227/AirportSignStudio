@@ -108,9 +108,9 @@ namespace AirportSignStudio
             foreach (AtlasRegion child in region.Children) Regions[child.Index] = child;
         }
 
-        // A divider joins only overlapping edge segments, not a whole row/column.
-        // A tall neighbour may require several shorter edges to move together.
-        public AtlasDivider Divider(int index, AtlasEdge edge)
+        // A local divider follows overlapping edges. A whole divider also picks up
+        // aligned edges on the far side of merged regions.
+        public AtlasDivider Divider(int index, AtlasEdge edge, bool whole = false)
         {
             AtlasRegion region = Regions[index];
             if (region == null) return null;
@@ -119,6 +119,7 @@ namespace AirportSignStudio
                 edge == AtlasEdge.Top ? region.Bounds.Top : region.Bounds.Bottom;
             if (position < 0.00001f || position > 0.99999f) return null;
             float start = vertical ? region.Bounds.Top : region.Bounds.Left, end = vertical ? region.Bounds.Bottom : region.Bounds.Right;
+            if (whole) { start = 0; end = 1; }
             List<int> before = new List<int>(), after = new List<int>();
             bool changed;
             do

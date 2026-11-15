@@ -162,6 +162,9 @@ namespace AirportSignStudio
                 if (s.Kind != AssetKind.TaxiSign) Number("整体宽度 / mm", s.Width, 0, 200000, 0, v => s.Width = v);
                 Number("整体高度 / mm", s.Height, 0, 200000, 0, v => s.Height = v);
             }
+            Hint(s.Kind == AssetKind.TaxiSign ? "各段左右留边 · −1 = 自动" : "左右留边 · −1 = 自动", 25);
+            Number("左留边 / mm", s.LeftMargin, -1, 200000, 0, v => s.LeftMargin = v);
+            Number("右留边 / mm", s.RightMargin, -1, 200000, 0, v => s.RightMargin = v);
             DpiLayout.ScaleNewChildren(this); ResumeLayout(true); building = false;
         }
 

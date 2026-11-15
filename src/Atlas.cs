@@ -17,6 +17,7 @@ namespace AirportSignStudio
         public Bitmap Painted;
         public readonly HashSet<int> Selection = new HashSet<int>();
         public bool MultiSelect;
+        public bool WholeDivider;
         public Action<int, bool, bool> SelectSlot;
         public Action LayoutChanged;
         public Action LayoutEditStarted, LayoutEditEnded;
@@ -132,8 +133,14 @@ namespace AirportSignStudio
                 {
                     float x = view.X + (Workspace.Padding - Workspace.Gap / 2f) * scale, y = view.Y + (Workspace.Padding - Workspace.Gap / 2f) * scale;
                     float w = (Workspace.Width - 2f * Workspace.Padding + Workspace.Gap) * scale, h = (Workspace.Height - 2f * Workspace.Padding + Workspace.Gap) * scale;
-                    if (dragging.Vertical) g.DrawLine(pen, x + dragging.Position * w, y + dragging.Start * h, x + dragging.Position * w, y + dragging.End * h);
-                    else g.DrawLine(pen, x + dragging.Start * w, y + dragging.Position * h, x + dragging.End * w, y + dragging.Position * h);
+                    foreach (int index in dragging.Before)
+                    {
+                        RectangleF bounds = Workspace.Regions[index].Bounds;
+                        if (dragging.Vertical)
+                            g.DrawLine(pen, x + dragging.Position * w, y + bounds.Top * h, x + dragging.Position * w, y + bounds.Bottom * h);
+                        else
+                            g.DrawLine(pen, x + bounds.Left * w, y + dragging.Position * h, x + bounds.Right * w, y + dragging.Position * h);
+                    }
                 }
             StudioTheme.CanvasFrame(this, g);
         }
@@ -157,7 +164,7 @@ namespace AirportSignStudio
                     float distance = Math.Abs((vertical ? point.X - view.X : point.Y - view.Y) - position * scale);
                     float along = vertical ? point.Y - view.Y : point.X - view.X;
                     if (distance >= nearest || along < (vertical ? b.Top : b.Left) * scale - 3 || along > (vertical ? b.Bottom : b.Right) * scale + 3) continue;
-                    AtlasDivider divider = Workspace.Divider(slot.Index, edge);
+                    AtlasDivider divider = Workspace.Divider(slot.Index, edge, WholeDivider);
                     if (divider != null) { nearest = distance; found = divider; index = slot.Index; }
                 }
             }
@@ -352,6 +359,9 @@ namespace AirportSignStudio
             merge.Text = "合并选区"; merge.Size = new Size(96, 34); ((StudioButton)merge).Quiet = true; regions.Controls.Add(merge);
             split.Text = "拆分合并区"; split.Size = new Size(104, 34); ((StudioButton)split).Quiet = true; regions.Controls.Add(split);
             Button reset = new StudioButton { Text = "恢复均分", Quiet = true, Size = new Size(92, 34) }; regions.Controls.Add(reset);
+            CheckBox wholeDivider = new CheckBox { Text = "整行 / 整列", AutoSize = true, Height = 34, Margin = new Padding(10, 8, 0, 0) };
+            regions.Controls.Add(wholeDivider);
+            wholeDivider.CheckedChanged += delegate { preview.WholeDivider = wholeDivider.Checked; preview.Invalidate(); };
             multiple.CheckedChanged += delegate { preview.MultiSelect = multiple.Checked; if (!multiple.Checked) Select(workspace.Selected); preview.Invalidate(); };
             merge.Click += delegate
             {
@@ -494,7 +504,7 @@ namespace AirportSignStudio
                 if (preview.Painted == null || Math.Max(preview.Painted.Width, preview.Painted.Height) != expected) { paintTimer.Stop(); paintTimer.Start(); }
             }
         }
-        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(workspace.ProjectPath) ? "未命名工程" : Path.GetFileName(workspace.ProjectPath)) + " · Airport Sign Studio 3.20"; }
+        void ProjectTitle() { Text = "拼图编辑器 · " + (string.IsNullOrEmpty(workspace.ProjectPath) ? "未命名工程" : Path.GetFileName(workspace.ProjectPath)) + " · Airport Sign Studio 3.21"; }
         void CommitEdits() { ValidateChildren(); foreach (DataGridView grid in editor.Controls.OfType<DataGridView>()) grid.EndEdit(); }
         void BeginEdit() { CommitEdits(); history.Begin(preview.Selection); }
         void EndEdit() { history.End(preview.Selection); UpdateHistoryButtons(); }

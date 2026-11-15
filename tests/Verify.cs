@@ -21,6 +21,70 @@ static partial class Verify
     {
         bool threw = false; try { action(); } catch (ArgumentException) { threw = true; } Assert(threw, message);
     }
+    static void VerifyMarginsAndWholeDividers(SignEngine engine)
+    {
+        Settings board = new Settings { Kind = AssetKind.StandSign, CharacterHeight = 600, Text = "A", LeftMargin = 80, RightMargin = 180 };
+        using (SignDocument sign = engine.Build(board))
+        {
+            RectangleF text = sign.Shapes[1].Path.GetBounds();
+            Near(text.Left, 80, "Automatic width uses exact left margin");
+            Near(sign.Width - text.Right, 180, "Automatic width uses exact right margin");
+        }
+        board.AspectRatio = "2:1";
+        using (SignDocument sign = engine.Build(board))
+        {
+            RectangleF text = sign.Shapes[1].Path.GetBounds();
+            Near(sign.Width / sign.Height, 2, "Margins work with ratio");
+            Near(sign.Width - text.Right - text.Left, 100, "Extra width preserves offset");
+        }
+        board.LeftMargin = -1;
+        using (SignDocument sign = engine.Build(board))
+            Near(sign.Width - sign.Shapes[1].Path.GetBounds().Right, 180, "One custom margin anchors that side");
+        board.Width = 100;
+        board.AspectRatio = null;
+        Throws(() => { using (engine.Build(board)) { } }, "Explicit width must fit custom margins");
+        board.Width = 0;
+
+        Settings taxi = new Settings { Kind = AssetKind.TaxiSign, CharacterHeight = 300, LeftMargin = 80, RightMargin = 180 };
+        taxi.Panels.Add(new SignPanel { Kind = "位置", Text = "A", Arrow = "无" });
+        taxi.Panels.Add(new SignPanel { Kind = "位置", Text = "B", Arrow = "无" });
+        using (SignDocument sign = engine.Build(taxi))
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                RectangleF panel = sign.Shapes[i * 2].Path.GetBounds(), text = sign.Shapes[i * 2 + 1].Path.GetBounds();
+                Near(text.Left - panel.Left, 80, "Combination left margin " + i);
+                Near(panel.Right - text.Right, 180, "Combination right margin " + i);
+            }
+        }
+
+        foreach (bool vertical in new[] { true, false })
+        {
+            AtlasWorkspace w = new AtlasWorkspace();
+            w.Resize(vertical ? 3 : 2, vertical ? 2 : 3);
+            int middle = vertical ? 2 : 1, far = vertical ? 4 : 2;
+            w.Selected = middle;
+            w.Merge(new[] { middle, vertical ? 3 : 4 });
+            w.Slots[0] = board.Copy();
+            AtlasHistory history = new AtlasHistory(w);
+            string initial = ProjectStore.Encode(w);
+            RectangleF mergedBounds = w.Regions[middle].Bounds;
+            AtlasEdge edge = vertical ? AtlasEdge.Right : AtlasEdge.Bottom;
+            AtlasDivider local = w.Divider(0, edge);
+            AtlasDivider whole = w.Divider(0, edge, true);
+            Assert(!local.Before.Contains(far) && whole.Before.Contains(far), "Whole divider crosses the gap between aligned segments");
+            Assert(w.MoveDivider(whole, 0.65f), "Whole divider moves");
+            Near(vertical ? w.Regions[far].Bounds.Right : w.Regions[far].Bounds.Bottom, 0.65f, "Far segment moves with the whole line");
+            Assert(w.Regions[middle].Bounds == mergedBounds, "Divider leaves the spanning merged region intact");
+            string moved = ProjectStore.Encode(w);
+            AtlasWorkspace restored = ProjectStore.Decode(moved);
+            Assert(ProjectStore.Encode(restored) == moved && restored.Slots[0].RightMargin == 180, "Project retains moved segments and margins");
+            history.Record(new[] { 0 });
+            Assert(history.Undo() && ProjectStore.Encode(w) == initial &&
+                history.Redo() && ProjectStore.Encode(w) == moved, "Whole divider undoes and redoes together");
+        }
+    }
+
     static void VerifyAspectRatio(SignEngine engine)
     {
         Settings board = new Settings { Kind = AssetKind.StandSign, Text = "23", CharacterHeight = 600, Width = 2400, Height = 1200 };
@@ -847,6 +911,7 @@ static partial class Verify
                 Assert(Exporter.SafeName("A1 / B2:*?") == "A1_B2", "Safe export file names");
                 VerifyV2(engine, library, directory);
                 VerifyAspectRatio(engine);
+                VerifyMarginsAndWholeDividers(engine);
                 VerifyAtlas(engine, directory);
                 VerifyMergedAtlas(engine, directory);
                 VerifyProjectAndPol(engine, directory);
